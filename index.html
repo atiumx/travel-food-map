@@ -502,6 +502,31 @@ body {
 .detail-hero.cg-attraction   { background: linear-gradient(135deg, #d8e8e0, #95c2a8); }
 .detail-hero.cg-lodging      { background: linear-gradient(135deg, #e0e0e8, #a4a8c0); }
 .detail-hero.cg-other        { background: linear-gradient(135deg, #ece9e0, #c8c2a8); }
+/* Dark mode: muted/desaturated hero gradients */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .detail-hero                 { background: linear-gradient(135deg, #2e2a26, #38322c); }
+  :root:not([data-theme="light"]) .detail-hero.cg-japanese     { background: linear-gradient(135deg, #3a2826, #4a3030); }
+  :root:not([data-theme="light"]) .detail-hero.cg-asian        { background: linear-gradient(135deg, #3a2e1e, #4a3820); }
+  :root:not([data-theme="light"]) .detail-hero.cg-western      { background: linear-gradient(135deg, #322a20, #423828); }
+  :root:not([data-theme="light"]) .detail-hero.cg-cafe_dessert { background: linear-gradient(135deg, #382c20, #483826); }
+  :root:not([data-theme="light"]) .detail-hero.cg-bar          { background: linear-gradient(135deg, #2e2632, #3a2c44); }
+  :root:not([data-theme="light"]) .detail-hero.cg-fast         { background: linear-gradient(135deg, #3a3018, #4a3a1c); }
+  :root:not([data-theme="light"]) .detail-hero.cg-attraction   { background: linear-gradient(135deg, #1e2e26, #28403a); }
+  :root:not([data-theme="light"]) .detail-hero.cg-lodging      { background: linear-gradient(135deg, #25272e, #303040); }
+  :root:not([data-theme="light"]) .detail-hero.cg-other        { background: linear-gradient(135deg, #2e2c28, #38342e); }
+  :root:not([data-theme="light"]) .detail-hero .hero-emoji    { opacity: 0.65; }
+}
+:root[data-theme="dark"] .detail-hero                 { background: linear-gradient(135deg, #2e2a26, #38322c); }
+:root[data-theme="dark"] .detail-hero.cg-japanese     { background: linear-gradient(135deg, #3a2826, #4a3030); }
+:root[data-theme="dark"] .detail-hero.cg-asian        { background: linear-gradient(135deg, #3a2e1e, #4a3820); }
+:root[data-theme="dark"] .detail-hero.cg-western      { background: linear-gradient(135deg, #322a20, #423828); }
+:root[data-theme="dark"] .detail-hero.cg-cafe_dessert { background: linear-gradient(135deg, #382c20, #483826); }
+:root[data-theme="dark"] .detail-hero.cg-bar          { background: linear-gradient(135deg, #2e2632, #3a2c44); }
+:root[data-theme="dark"] .detail-hero.cg-fast         { background: linear-gradient(135deg, #3a3018, #4a3a1c); }
+:root[data-theme="dark"] .detail-hero.cg-attraction   { background: linear-gradient(135deg, #1e2e26, #28403a); }
+:root[data-theme="dark"] .detail-hero.cg-lodging      { background: linear-gradient(135deg, #25272e, #303040); }
+:root[data-theme="dark"] .detail-hero.cg-other        { background: linear-gradient(135deg, #2e2c28, #38342e); }
+:root[data-theme="dark"] .detail-hero .hero-emoji    { opacity: 0.65; }
 .detail .links { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .detail .links a {
   font-size: 12px; padding: 3px 8px; border-radius: 4px;

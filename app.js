@@ -1264,6 +1264,14 @@
       restoreAnchorsForCurrentArea();
       renderAnchorList();
       updateWalkingUI();
+      // Bug fix: close any open detail panel since it shows a place from the previous area
+      const detailPanel = $("detailPanel");
+      if (detailPanel) {
+        detailPanel.classList.remove("open");
+        detailPanel.classList.remove("expanded");
+        document.querySelectorAll(".emoji-marker.selected").forEach(el => el.classList.remove("selected"));
+      }
+      state.selectedPlaceId = null;
       await loadPlacesForCurrentArea();
       if (state.showStations) renderStationMarkers();
     });
