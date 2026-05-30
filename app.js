@@ -1059,8 +1059,31 @@
   // -----------------------------------------------------------
   async function registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
+    // Nuke option: ?nuke=1 unregisters SW + clears caches then reloads clean
+    try {
+      const usp = new URLSearchParams(location.search);
+      if (usp.get("nuke") === "1") {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+        if (window.caches) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+        usp.delete("nuke");
+        const clean = location.pathname + (usp.toString() ? "?" + usp.toString() : "");
+        location.replace(clean);
+        return;
+      }
+    } catch (e) { console.warn("nuke failed", e); }
     try {
       const reg = await navigator.serviceWorker.register("sw.js");
+      // Auto-reload once when a new SW takes control (avoids stuck old shell)
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (refreshing) return;
+        refreshing = true;
+        location.reload();
+      });
       // Listen for updates: when a new worker installs, show a toast
       reg.addEventListener("updatefound", () => {
         const nw = reg.installing;
