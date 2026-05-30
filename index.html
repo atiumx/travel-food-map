@@ -180,16 +180,37 @@ body {
 .walking-body .label {
   font-size: 11px; color: var(--muted); margin-bottom: 2px;
 }
-.anchor-row { display: flex; gap: 4px; }
-.anchor-row .btn-sm {
-  flex: 1; padding: 5px 4px; font-size: 11px;
+/* Anchor list (多起點) */
+.anchor-list { display: flex; flex-direction: column; gap: 4px; }
+.anchor-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 6px 4px 8px;
   border: 1px solid var(--border); border-radius: 5px;
-  background: #fff; color: var(--text); cursor: pointer; text-align: center;
+  background: #fff; font-size: 12px;
 }
-.anchor-row .btn-sm.active {
-  background: var(--accent); border-color: var(--accent); color: #fff;
+.anchor-color {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid currentColor; background: #fff;
 }
-.anchor-row .btn-sm:hover:not(.active) { background: #faf8f3; }
+.anchor-label {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.anchor-remove {
+  background: none; border: none; color: var(--muted);
+  cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px;
+}
+.anchor-remove:hover { color: var(--accent); }
+
+.add-anchor-row { display: flex; gap: 4px; }
+.add-anchor-row .btn-sm {
+  flex: 1; padding: 5px 4px; font-size: 11px;
+  border: 1px dashed var(--border); border-radius: 5px;
+  background: #fff; color: var(--muted); cursor: pointer; text-align: center;
+}
+.add-anchor-row .btn-sm:hover:not(:disabled) {
+  border-style: solid; color: var(--accent); border-color: var(--accent);
+}
+.add-anchor-row .btn-sm:disabled { opacity: 0.4; cursor: not-allowed; }
 .chip-row { display: flex; gap: 4px; }
 .chip {
   flex: 1; padding: 6px 4px; font-size: 12px; font-weight: 500;
@@ -246,11 +267,12 @@ body {
       </label>
       <div class="walking-body" id="walkingBody">
         <div>
-          <div class="label">起點</div>
-          <div class="anchor-row">
-            <button class="btn-sm active" data-anchor="map" id="anchorMap">地圖中心</button>
-            <button class="btn-sm" data-anchor="geo" id="anchorGeo">📍 我的位置</button>
-            <button class="btn-sm" data-anchor="place" id="anchorPlace">從地點</button>
+          <div class="label">起點（多個要同時吃到）</div>
+          <div class="anchor-list" id="anchorList"></div>
+          <div class="add-anchor-row" style="margin-top:4px;">
+            <button class="btn-sm" id="addAnchorMap">+ 地圖中心</button>
+            <button class="btn-sm" id="addAnchorGeo">+ 📍 位置</button>
+            <button class="btn-sm" id="addAnchorPlace">+ 地點</button>
           </div>
         </div>
         <div>
@@ -261,8 +283,8 @@ body {
             <button class="chip" data-min="15">15</button>
           </div>
         </div>
-        <div class="walking-status" id="walkingStatus">起點：地圖中心 · 5 分鐘 ≈ 280m</div>
-        <div class="walking-hint">直線距離估算（速度 56 m/min，含 0.7 路程保險因子）。實際路程可能更長。</div>
+        <div class="walking-status" id="walkingStatus">5 分鐘 ≈ 280m · 未有起點</div>
+        <div class="walking-hint">直線距離估算（速度 56 m/min，含 0.7 路程保險因子）。多個起點時，所有 anchor 都係範圍內才顯示。</div>
       </div>
     </div>
 

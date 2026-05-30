@@ -40,21 +40,22 @@
     selectedPlaceId: null,
     markers: new Map(),       // place_id -> marker
 
-    // 步行圈
+    // 步行圈（多 anchor）
     walking: {
       enabled: false,
       minutes: 5,
-      anchorMode: "map",      // "map" | "geo" | "place"
-      anchorLat: null,        // 由 anchor mode 決定
-      anchorLng: null,
-      anchorPlaceId: null,    // anchorMode = "place" 時用
-      geoError: null,
+      anchors: [],           // [{ id, mode:"map"|"geo"|"place", lat, lng, label, placeId?, color }]
+      lastError: null,
     },
   };
 
-  // 地圖 layers
+  // 步行圈 layers
   const walkingLayer = L.layerGroup();
-  let anchorMarker = null;
+  const anchorMarkers = new Map(); // anchor.id -> L.circleMarker
+  const ANCHOR_COLORS = ["#b8412c", "#2c6fb8", "#3a8a3a", "#c87f0a", "#8a3aa8"];
+  const MAX_ANCHORS = 5;
+  let anchorIdCounter = 1;
+  const nextAnchorId = () => `a${anchorIdCounter++}`;
 
   // -----------------------------------------------------------
   // DOM refs
@@ -107,9 +108,12 @@
     $("walkingToggle").addEventListener("change", (e) => {
       state.walking.enabled = e.target.checked;
       $("walkingBody").classList.toggle("open", state.walking.enabled);
-      if (state.walking.enabled) {
-        ensureAnchor();          // 必要時自動初始化 anchor
+      if (state.walking.enabled && state.walking.anchors.length === 0) {
+        // 預設加一個「地圖中心」anchor
+        addAnchor("map");
+        return; // addAnchor 內部會 update + applyFilters
       }
+      renderAnchorList();
       updateWalkingUI();
       applyFilters();
     });
@@ -124,19 +128,20 @@
       });
     });
 
-    document.querySelectorAll(".anchor-row .btn-sm").forEach(btn => {
-      btn.addEventListener("click", () => handleAnchorChange(btn.dataset.anchor));
-    });
+    $("addAnchorMap").addEventListener("click", () => addAnchor("map"));
+    $("addAnchorGeo").addEventListener("click", () => addAnchor("geo"));
+    $("addAnchorPlace").addEventListener("click", () => addAnchor("place"));
 
-    // 地圖中心模式下，拖動／縮放地圖後重新計算
+    // 地圖中心模式 anchor：拖動地圖要重新計
     map.on("moveend", () => {
-      if (state.walking.enabled && state.walking.anchorMode === "map") {
-        const c = map.getCenter();
-        state.walking.anchorLat = c.lat;
-        state.walking.anchorLng = c.lng;
-        updateWalkingUI();
-        applyFilters();
-      }
+      if (!state.walking.enabled) return;
+      const mapAnchors = state.walking.anchors.filter(a => a.mode === "map");
+      if (mapAnchors.length === 0) return;
+      const c = map.getCenter();
+      for (const a of mapAnchors) { a.lat = c.lat; a.lng = c.lng; }
+      renderAnchorList();
+      updateWalkingUI();
+      applyFilters();
     });
 
     inviteBtn.addEventListener("click", () => openModal("inviteModal"));
@@ -221,11 +226,12 @@
     const cat = categoryFilter.value;
     const price = priceFilter.value;
 
-    // 步行圈半徑（米）
+    // 步行圈：AND filter、取 max distance 作為「最差頂 anchor」
     const w = state.walking;
-    const radiusM = (w.enabled && w.anchorLat != null && w.anchorLng != null)
-      ? w.minutes * WALK_METRES_PER_MIN
-      : null;
+    const validAnchors = w.enabled
+      ? w.anchors.filter(a => a.lat != null && a.lng != null)
+      : [];
+    const radiusM = validAnchors.length > 0 ? w.minutes * WALK_METRES_PER_MIN : null;
 
     state.filtered = state.places.filter(p => {
       if (cat && p.category !== cat) return false;
@@ -239,17 +245,20 @@
       }
       if (radiusM != null) {
         if (p.lat == null || p.lng == null) return false;
-        const d = haversine(w.anchorLat, w.anchorLng, p.lat, p.lng);
-        // 將距離 stash 落去俾 list render 顯示
-        p._distance_m = d;
-        if (d > radiusM) return false;
+        // 所有 anchor 都要 within radius（AND）
+        let maxD = 0;
+        for (const a of validAnchors) {
+          const d = haversine(a.lat, a.lng, p.lat, p.lng);
+          if (d > radiusM) return false;
+          if (d > maxD) maxD = d;
+        }
+        p._distance_m = maxD;       // 最遠 anchor 距離 = 「瓶頸距離」
       } else {
         p._distance_m = null;
       }
       return true;
     });
 
-    // 步行圈 mode 下按距離排序
     if (radiusM != null) {
       state.filtered.sort((a, b) => (a._distance_m ?? Infinity) - (b._distance_m ?? Infinity));
     }
@@ -315,66 +324,125 @@
     return 2 * R * Math.asin(Math.sqrt(a));
   }
 
-  function ensureAnchor() {
-    const w = state.walking;
-    if (w.anchorMode === "map" && (w.anchorLat == null || w.anchorLng == null)) {
-      const c = map.getCenter();
-      w.anchorLat = c.lat;
-      w.anchorLng = c.lng;
-    }
+  function pickAnchorColor() {
+    const used = new Set(state.walking.anchors.map(a => a.color));
+    for (const c of ANCHOR_COLORS) if (!used.has(c)) return c;
+    return ANCHOR_COLORS[state.walking.anchors.length % ANCHOR_COLORS.length];
   }
 
-  async function handleAnchorChange(mode) {
+  function addAnchor(mode) {
     const w = state.walking;
-    w.anchorMode = mode;
-    document.querySelectorAll(".anchor-row .btn-sm")
-      .forEach(b => b.classList.toggle("active", b.dataset.anchor === mode));
-
-    if (mode === "map") {
-      const c = map.getCenter();
-      w.anchorLat = c.lat; w.anchorLng = c.lng;
-      w.geoError = null;
+    if (w.anchors.length >= MAX_ANCHORS) {
+      w.lastError = `最多${MAX_ANCHORS}個起點`;
       updateWalkingUI();
-      if (w.enabled) applyFilters();
-    } else if (mode === "geo") {
-      $("walkingStatus").textContent = "取得位置中⋯";
-      $("walkingStatus").classList.remove("error");
-      if (!navigator.geolocation) {
-        w.geoError = "瀏覽器唔支援定位";
+      return;
+    }
+    w.lastError = null;
+
+    // 一個 mode 只保留一個（多個 map / geo 重複沒意義；但 place 接受多個不同 place）
+    if (mode === "map" || mode === "geo") {
+      if (w.anchors.some(a => a.mode === mode)) {
+        w.lastError = mode === "map" ? "已有地圖中心 anchor" : "已有位置 anchor";
         updateWalkingUI();
         return;
       }
+    }
+
+    const id = nextAnchorId();
+    const color = pickAnchorColor();
+
+    if (mode === "map") {
+      const c = map.getCenter();
+      w.anchors.push({ id, mode, lat: c.lat, lng: c.lng, label: "地圖中心", color });
+      finalizeAnchorAdd();
+    } else if (mode === "geo") {
+      if (!navigator.geolocation) {
+        w.lastError = "瀏覽器唔支援定位";
+        updateWalkingUI();
+        return;
+      }
+      // 插一個 pending anchor 顯示「取位置中⋯」
+      w.anchors.push({ id, mode, lat: null, lng: null, label: "取位置中⋯", color });
+      renderAnchorList();
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          w.anchorLat = pos.coords.latitude;
-          w.anchorLng = pos.coords.longitude;
-          w.geoError = null;
-          map.setView([w.anchorLat, w.anchorLng], 15);
-          updateWalkingUI();
-          if (w.enabled) applyFilters();
+          const a = w.anchors.find(x => x.id === id);
+          if (!a) return;
+          a.lat = pos.coords.latitude;
+          a.lng = pos.coords.longitude;
+          a.label = "我的位置";
+          finalizeAnchorAdd();
         },
         (err) => {
-          w.geoError = "取位置失敗：" + (err.message || err.code);
+          // 移除個 pending anchor
+          state.walking.anchors = state.walking.anchors.filter(x => x.id !== id);
+          state.walking.lastError = "取位置失敗：" + (err.message || err.code);
+          renderAnchorList();
           updateWalkingUI();
+          if (state.walking.enabled) applyFilters();
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
       );
     } else if (mode === "place") {
-      // 用當前選中嘅地點，或者第一個有座標嘅
-      let p = state.places.find(x => x.id === state.selectedPlaceId);
-      if (!p) p = state.places.find(x => x.lat != null && x.lng != null);
+      // 選 selectedPlaceId、或第一個未被揀作 anchor 嘅 place
+      const usedPlaceIds = new Set(w.anchors.filter(a => a.placeId).map(a => a.placeId));
+      let p = state.places.find(x => x.id === state.selectedPlaceId && !usedPlaceIds.has(x.id) && x.lat != null);
+      if (!p) p = state.places.find(x => !usedPlaceIds.has(x.id) && x.lat != null && x.lng != null);
       if (!p) {
-        w.geoError = "未有地點可揀做起點";
+        w.lastError = "未有適合嘅地點可揀";
         updateWalkingUI();
         return;
       }
-      w.anchorPlaceId = p.id;
-      w.anchorLat = p.lat; w.anchorLng = p.lng;
-      w.geoError = null;
+      w.anchors.push({ id, mode, lat: p.lat, lng: p.lng, label: p.name, placeId: p.id, color });
       map.setView([p.lat, p.lng], 16);
-      updateWalkingUI();
-      if (w.enabled) applyFilters();
+      finalizeAnchorAdd();
     }
+  }
+
+  function finalizeAnchorAdd() {
+    renderAnchorList();
+    updateWalkingUI();
+    if (state.walking.enabled) applyFilters();
+  }
+
+  function removeAnchor(id) {
+    state.walking.anchors = state.walking.anchors.filter(a => a.id !== id);
+    state.walking.lastError = null;
+    renderAnchorList();
+    updateWalkingUI();
+    applyFilters();
+  }
+
+  function renderAnchorList() {
+    const w = state.walking;
+    const listEl = $("anchorList");
+    if (w.anchors.length === 0) {
+      listEl.innerHTML = '<div style="font-size:11px;color:var(--muted);font-style:italic;">點下面「+」加起點</div>';
+    } else {
+      listEl.innerHTML = w.anchors.map(a => {
+        const icon = a.mode === "map" ? "🎯" : a.mode === "geo" ? "📍" : "📌";
+        return `
+          <div class="anchor-item" data-id="${a.id}">
+            <span class="anchor-color" style="color:${a.color};"></span>
+            <span class="anchor-label">${icon} ${escapeHtml(a.label)}</span>
+            <button class="anchor-remove" data-id="${a.id}" title="移除">×</button>
+          </div>
+        `;
+      }).join("");
+    }
+    // 綁 remove
+    listEl.querySelectorAll(".anchor-remove").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        removeAnchor(btn.dataset.id);
+      });
+    });
+
+    // disable add 按鈕當達上限
+    const full = w.anchors.length >= MAX_ANCHORS;
+    $("addAnchorMap").disabled = full || w.anchors.some(a => a.mode === "map");
+    $("addAnchorGeo").disabled = full || w.anchors.some(a => a.mode === "geo");
+    $("addAnchorPlace").disabled = full;
   }
 
   function updateWalkingUI() {
@@ -382,55 +450,58 @@
     const statusEl = $("walkingStatus");
     statusEl.classList.remove("error");
 
-    if (w.geoError) {
-      statusEl.textContent = w.geoError;
+    if (w.lastError) {
+      statusEl.textContent = w.lastError;
       statusEl.classList.add("error");
       return;
     }
 
     const radius = w.minutes * WALK_METRES_PER_MIN;
-    let anchorLabel = "地圖中心";
-    if (w.anchorMode === "geo") anchorLabel = "我的位置";
-    if (w.anchorMode === "place") {
-      const p = state.places.find(x => x.id === w.anchorPlaceId);
-      anchorLabel = p ? `由「${p.name}」` : "地點";
-    }
-    statusEl.textContent = `起點：${anchorLabel} · ${w.minutes} 分鐘 ≈ ${radius}m`;
+    const n = w.anchors.filter(a => a.lat != null).length;
+    const suffix = n === 0 ? "· 未有起點"
+                : n === 1 ? "· 1 個起點"
+                : `· ${n} 個起點（同時要係範圍內）`;
+    statusEl.textContent = `${w.minutes} 分鐘 ≈ ${radius}m ${suffix}`;
   }
 
   function renderWalkingCircles() {
     walkingLayer.clearLayers();
-    if (anchorMarker) { map.removeLayer(anchorMarker); anchorMarker = null; }
+    for (const m of anchorMarkers.values()) map.removeLayer(m);
+    anchorMarkers.clear();
 
     const w = state.walking;
-    if (!w.enabled || w.anchorLat == null || w.anchorLng == null) return;
+    if (!w.enabled) return;
+    const valid = w.anchors.filter(a => a.lat != null && a.lng != null);
+    if (valid.length === 0) return;
 
     if (!map.hasLayer(walkingLayer)) map.addLayer(walkingLayer);
 
-    // 3 個同心圓參考（5/10/15），當前選中嗰個 opacity 高啲
-    for (const m of WALK_MINUTES) {
-      const r = m * WALK_METRES_PER_MIN;
-      const isActive = (m === w.minutes);
-      L.circle([w.anchorLat, w.anchorLng], {
-        radius: r,
-        color: "#b8412c",
-        weight: isActive ? 2 : 1,
-        opacity: isActive ? 0.8 : 0.35,
-        fillColor: "#b8412c",
-        fillOpacity: isActive ? 0.08 : 0.03,
+    for (const a of valid) {
+      // 3 同心圓（該 anchor 色）
+      for (const m of WALK_MINUTES) {
+        const r = m * WALK_METRES_PER_MIN;
+        const isActive = (m === w.minutes);
+        L.circle([a.lat, a.lng], {
+          radius: r,
+          color: a.color,
+          weight: isActive ? 2 : 1,
+          opacity: isActive ? 0.7 : 0.25,
+          fillColor: a.color,
+          fillOpacity: isActive ? 0.05 : 0.02,
+          interactive: false,
+        }).addTo(walkingLayer);
+      }
+      // anchor pin
+      const pin = L.circleMarker([a.lat, a.lng], {
+        radius: 7,
+        color: a.color,
+        weight: 3,
+        fillColor: "#fff",
+        fillOpacity: 1,
         interactive: false,
-      }).addTo(walkingLayer);
+      }).addTo(map);
+      anchorMarkers.set(a.id, pin);
     }
-
-    // anchor pin（細小、唔同 place marker）
-    anchorMarker = L.circleMarker([w.anchorLat, w.anchorLng], {
-      radius: 6,
-      color: "#b8412c",
-      weight: 2,
-      fillColor: "#fff",
-      fillOpacity: 1,
-      interactive: false,
-    }).addTo(map);
   }
 
   // -----------------------------------------------------------
