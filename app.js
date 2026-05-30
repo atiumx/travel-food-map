@@ -495,9 +495,9 @@
   // I4: i18n (zh-TW / en / ja)
   // -----------------------------------------------------------
   const I18N = {
-    "zh-TW": { "app.title":"旅行美食地圖", "role.guest":"訪客", "search.placeholder":"搜尋名稱／標籤／備註", "filter.all_cuisine":"所有菜系", "filter.all_category":"所有分類", "filter.all_price":"所有價位", "filter.hours_all":"營業時間：所有", "filter.hours_now":"而家開緊", "filter.hours_today":"今日有開", "filter.hours_title":"營業時間篩選", "filter.bookmark_all":"收藏：所有", "filter.bookmark_wish":"⭐ 想去", "filter.bookmark_been":"✅ 已去", "filter.bookmark_fav":"❤️ 最愛", "filter.bookmark_none":"— 未收藏", "filter.bookmark_title":"收藏狀態篩選", "filter.day_all":"日子：所有", "filter.day_none":"— 未分配", "filter.day_title":"日子篩選", "filter.sort_title":"排序", "sort.default":"排序：預設", "sort.distance":"距離（步行圈）", "sort.rating":"評分（高→低）", "sort.recent":"最新加入", "sort.name":"名稱（A→Z）", "sort.random":"隨機", "btn.here":"📍 我而家", "btn.here_title":"用我而家位置做起點", "btn.share_title":"複製連結（含篩選）", "btn.heat":"🔥 熱力圖（按評分加權）", "btn.heat_title":"熱力圖 toggle", "budget.header":"💰 人均預算估算", "budget.total":"人均總預算", "budget.places_unit":"間店", "budget.per_place":"/店", "budget.unassigned":"未分配", "budget.empty":"未收藏任何餐廳。加⭐/✅/❤️ 後顯示總預算。", "budget.edit_rates":"調整單價 ⚙️" },
-    "en": { "app.title":"Travel Food Map", "role.guest":"Guest", "search.placeholder":"Search name / tags / notes", "filter.all_cuisine":"All cuisines", "filter.all_category":"All categories", "filter.all_price":"All prices", "filter.hours_all":"Hours: All", "filter.hours_now":"Open now", "filter.hours_today":"Open today", "filter.hours_title":"Filter by opening hours", "filter.bookmark_all":"Bookmark: All", "filter.bookmark_wish":"⭐ Wishlist", "filter.bookmark_been":"✅ Visited", "filter.bookmark_fav":"❤️ Favorite", "filter.bookmark_none":"— Unbookmarked", "filter.bookmark_title":"Filter by bookmark state", "filter.day_all":"Day: All", "filter.day_none":"— Unassigned", "filter.day_title":"Filter by trip day", "filter.sort_title":"Sort", "sort.default":"Sort: Default", "sort.distance":"Distance (walking)", "sort.rating":"Rating (high→low)", "sort.recent":"Recently added", "sort.name":"Name (A→Z)", "sort.random":"Random", "btn.here":"📍 Here", "btn.here_title":"Use current location as anchor", "btn.share_title":"Copy share link (with filters)", "btn.heat":"🔥 Heatmap (rating-weighted)", "btn.heat_title":"Toggle heatmap layer", "budget.header":"💰 Per-capita budget", "budget.total":"Estimated total", "budget.places_unit":"places", "budget.per_place":"/place", "budget.unassigned":"Unassigned", "budget.empty":"No bookmarks yet. Add ⭐/✅/❤️ to see totals.", "budget.edit_rates":"Edit rates ⚙️" },
-    "ja": { "app.title":"旅行グルメマップ", "role.guest":"ゲスト", "search.placeholder":"名称／タグ／メモを検索", "filter.all_cuisine":"全ての料理", "filter.all_category":"全カテゴリ", "filter.all_price":"全価格帯", "filter.hours_all":"営業時間：全て", "filter.hours_now":"今開店中", "filter.hours_today":"本日営業", "filter.hours_title":"営業時間フィルター", "filter.bookmark_all":"ブックマーク：全て", "filter.bookmark_wish":"⭐ 行きたい", "filter.bookmark_been":"✅ 行った", "filter.bookmark_fav":"❤️ お気に入り", "filter.bookmark_none":"— 未登録", "filter.bookmark_title":"ブックマーク状態", "filter.day_all":"日付：全て", "filter.day_none":"— 未割当", "filter.day_title":"旅程日フィルター", "filter.sort_title":"並び替え", "sort.default":"並び：デフォルト", "sort.distance":"距離（徒歩圏）", "sort.rating":"評価（高→低）", "sort.recent":"新着順", "sort.name":"名前（A→Z）", "sort.random":"ランダム", "btn.here":"📍 現在地", "btn.here_title":"現在地をアンカーに設定", "btn.share_title":"共有リンクをコピー", "btn.heat":"🔥 ヒートマップ（評価加重）", "btn.heat_title":"ヒートマップを切り替え", "budget.header":"💰 一人あたり予算", "budget.total":"一人予算合計", "budget.places_unit":"店舗", "budget.per_place":"/店", "budget.unassigned":"未割当", "budget.empty":"ブックマーク未登録。⭐/✅/❤️ を追加して予算を表示。", "budget.edit_rates":"単価設定 ⚙️" }
+    "zh-TW": { "app.title":"旅行美食地圖", "role.guest":"訪客", "search.placeholder":"搜尋名稱／標籤／備註", "filter.all_cuisine":"所有菜系", "filter.all_category":"所有分類", "filter.all_price":"所有價位", "filter.hours_all":"營業時間：所有", "filter.hours_now":"而家開緊", "filter.hours_today":"今日有開", "filter.hours_title":"營業時間篩選", "filter.bookmark_all":"收藏：所有", "filter.bookmark_wish":"⭐ 想去", "filter.bookmark_been":"✅ 已去", "filter.bookmark_fav":"❤️ 最愛", "filter.bookmark_none":"— 未收藏", "filter.bookmark_title":"收藏狀態篩選", "filter.day_all":"日子：所有", "filter.day_none":"— 未分配", "filter.day_title":"日子篩選", "filter.sort_title":"排序", "sort.default":"排序：預設", "sort.distance":"距離（步行圈）", "sort.rating":"評分（高→低）", "sort.recent":"最新加入", "sort.name":"名稱（A→Z）", "sort.random":"隨機", "btn.here":"📍 我而家", "btn.here_title":"用我而家位置做起點", "btn.share_title":"複製連結（含篩選）", "btn.heat":"🔥 熱力圖（按評分加權）", "btn.heat_title":"熱力圖 toggle", "budget.header":"💰 人均預算估算", "budget.total":"人均總預算", "budget.places_unit":"間店", "budget.per_place":"/店", "budget.unassigned":"未分配", "budget.empty":"未收藏任何餐廳。加⭐/✅/❤️ 後顯示總預算。", "budget.edit_rates":"調整單價 ⚙️", "theme.toggle":"切換亮/暗主題" },
+    "en": { "app.title":"Travel Food Map", "role.guest":"Guest", "search.placeholder":"Search name / tags / notes", "filter.all_cuisine":"All cuisines", "filter.all_category":"All categories", "filter.all_price":"All prices", "filter.hours_all":"Hours: All", "filter.hours_now":"Open now", "filter.hours_today":"Open today", "filter.hours_title":"Filter by opening hours", "filter.bookmark_all":"Bookmark: All", "filter.bookmark_wish":"⭐ Wishlist", "filter.bookmark_been":"✅ Visited", "filter.bookmark_fav":"❤️ Favorite", "filter.bookmark_none":"— Unbookmarked", "filter.bookmark_title":"Filter by bookmark state", "filter.day_all":"Day: All", "filter.day_none":"— Unassigned", "filter.day_title":"Filter by trip day", "filter.sort_title":"Sort", "sort.default":"Sort: Default", "sort.distance":"Distance (walking)", "sort.rating":"Rating (high→low)", "sort.recent":"Recently added", "sort.name":"Name (A→Z)", "sort.random":"Random", "btn.here":"📍 Here", "btn.here_title":"Use current location as anchor", "btn.share_title":"Copy share link (with filters)", "btn.heat":"🔥 Heatmap (rating-weighted)", "btn.heat_title":"Toggle heatmap layer", "budget.header":"💰 Per-capita budget", "budget.total":"Estimated total", "budget.places_unit":"places", "budget.per_place":"/place", "budget.unassigned":"Unassigned", "budget.empty":"No bookmarks yet. Add ⭐/✅/❤️ to see totals.", "budget.edit_rates":"Edit rates ⚙️", "theme.toggle":"Toggle light/dark theme" },
+    "ja": { "app.title":"旅行グルメマップ", "role.guest":"ゲスト", "search.placeholder":"名称／タグ／メモを検索", "filter.all_cuisine":"全ての料理", "filter.all_category":"全カテゴリ", "filter.all_price":"全価格帯", "filter.hours_all":"営業時間：全て", "filter.hours_now":"今開店中", "filter.hours_today":"本日営業", "filter.hours_title":"営業時間フィルター", "filter.bookmark_all":"ブックマーク：全て", "filter.bookmark_wish":"⭐ 行きたい", "filter.bookmark_been":"✅ 行った", "filter.bookmark_fav":"❤️ お気に入り", "filter.bookmark_none":"— 未登録", "filter.bookmark_title":"ブックマーク状態", "filter.day_all":"日付：全て", "filter.day_none":"— 未割当", "filter.day_title":"旅程日フィルター", "filter.sort_title":"並び替え", "sort.default":"並び：デフォルト", "sort.distance":"距離（徒歩圏）", "sort.rating":"評価（高→低）", "sort.recent":"新着順", "sort.name":"名前（A→Z）", "sort.random":"ランダム", "btn.here":"📍 現在地", "btn.here_title":"現在地をアンカーに設定", "btn.share_title":"共有リンクをコピー", "btn.heat":"🔥 ヒートマップ（評価加重）", "btn.heat_title":"ヒートマップを切り替え", "budget.header":"💰 一人あたり予算", "budget.total":"一人予算合計", "budget.places_unit":"店舗", "budget.per_place":"/店", "budget.unassigned":"未割当", "budget.empty":"ブックマーク未登録。⭐/✅/❤️ を追加して予算を表示。", "budget.edit_rates":"単価設定 ⚙️", "theme.toggle":"テーマ切替" }
   };
   function getLang() { return localStorage.getItem("tfm_lang") || "zh-TW"; }
   function setLang(l) { localStorage.setItem("tfm_lang", l); applyI18n(); }
@@ -510,11 +510,47 @@
   }
 
   // -----------------------------------------------------------
+  // K1: Dark mode theme toggle
+  // -----------------------------------------------------------
+  function getTheme() {
+    const saved = localStorage.getItem("tfm_theme");
+    if (saved === "dark" || saved === "light") return saved;
+    return (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+  }
+  function applyTheme() {
+    const t = getTheme();
+    document.documentElement.setAttribute("data-theme", t);
+    const btn = document.getElementById("themeToggle");
+    if (btn) btn.textContent = (t === "dark") ? "☀️" : "🌙";
+  }
+  function setTheme(t) {
+    localStorage.setItem("tfm_theme", t);
+    applyTheme();
+  }
+
+  // -----------------------------------------------------------
+  // K1: Skeleton loading for placeList
+  // -----------------------------------------------------------
+  function renderListSkeleton(n = 8) {
+    const listEl = document.getElementById("placeList");
+    if (!listEl) return;
+    const rows = [];
+    for (let i = 0; i < n; i++) {
+      rows.push('<div class="skeleton-row"><div class="skeleton skeleton-line mid"></div><div class="skeleton skeleton-line short"></div></div>');
+    }
+    listEl.innerHTML = rows.join("");
+  }
+
+  // -----------------------------------------------------------
   // Init
   // -----------------------------------------------------------
   async function init() {
     populateCategorySelects();
     bindEvents();
+    // K1: theme
+    applyTheme();
+    const themeBtn = document.getElementById("themeToggle");
+    if (themeBtn) themeBtn.addEventListener("click", () => setTheme(getTheme() === "dark" ? "light" : "dark"));
     // I4: language switcher
     const langSel = document.getElementById("langSwitch");
     if (langSel) { langSel.value = getLang(); langSel.addEventListener("change", e => setLang(e.target.value)); }
@@ -1328,6 +1364,7 @@
   // Places
   // -----------------------------------------------------------
   async function loadPlacesForCurrentArea() {
+    renderListSkeleton(8);
     centerMapOnCurrentArea();
     const ta = state.tripAreas.find(t => t.slug === state.currentTripAreaSlug);
     if (!ta) { state.places = []; renderDayStrip(); applyFilters(); return; }
