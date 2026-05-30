@@ -471,6 +471,40 @@ body {
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 #map { height: 100%; width: 100%; }
+.map-loading {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 800;
+  background: rgba(255,255,255,0.94);
+  color: #2b2925;
+  padding: 8px 14px;
+  border-radius: 999px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.map-loading-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid #d0c8b8;
+  border-top-color: #b8924f;
+  border-radius: 50%;
+  animation: mapLoadSpin 0.7s linear infinite;
+}
+@keyframes mapLoadSpin { to { transform: rotate(360deg); } }
+body[data-theme="dark"] .map-loading {
+  background: rgba(46,43,39,0.95);
+  color: #e9e3d5;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+body[data-theme="dark"] .map-loading-spinner {
+  border-color: #4a463d;
+  border-top-color: #d4af6b;
+}
 
 /* Detail panel */
 .detail {
@@ -1313,6 +1347,10 @@ body {
   </aside>
 
   <div id="map" role="application" aria-label="互動地圖"></div>
+  <div id="mapLoading" class="map-loading" aria-hidden="true" style="display:none;">
+    <span class="map-loading-spinner" aria-hidden="true"></span>
+    <span class="map-loading-text">載入中…</span>
+  </div>
 
   <!-- G1: Mobile-only floating action buttons -->
   <div class="map-fab-stack" id="mapFabStack">
@@ -1343,6 +1381,10 @@ body {
       <option value="6">Day 6</option>
       <option value="7">Day 7</option>
     </select>
+  </div>
+  <div id="detailOwnerVerified" style="display:none;font-size:12px;margin:4px 0;color:var(--muted);">
+    驗證狀態：<button type="button" id="detailOwnerVerifiedBtn" class="btn" style="font-size:12px;padding:3px 10px;margin-left:4px;"></button>
+    <span id="detailOwnerVerifiedHint" style="margin-left:6px;color:var(--muted);font-size:11px;"></span>
   </div>
   <div id="detailHours" style="font-size:12px;margin:4px 0;"></div>
   <div id="detailAddress" style="font-size:12px;color:var(--muted);margin:4px 0;"></div>

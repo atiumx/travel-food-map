@@ -1614,27 +1614,39 @@
   // -----------------------------------------------------------
   // Places
   // -----------------------------------------------------------
+  function showMapLoading(show) {
+    const el = document.getElementById("mapLoading");
+    if (!el) return;
+    el.style.display = show ? "flex" : "none";
+    el.setAttribute("aria-hidden", show ? "false" : "true");
+  }
+
   async function loadPlacesForCurrentArea() {
     renderListSkeleton(8);
+    showMapLoading(true);
     centerMapOnCurrentArea();
     const ta = state.tripAreas.find(t => t.slug === state.currentTripAreaSlug);
-    if (!ta) { state.places = []; renderDayStrip(); applyFilters(); return; }
+    if (!ta) { state.places = []; renderDayStrip(); applyFilters(); showMapLoading(false); return; }
 
-    const { data, error } = await sb
-      .from("places")
-      .select("*")
-      .eq("trip_area_id", ta.id)
-      .eq("is_archived", false)
-      .order("created_at", { ascending: false })
-      .limit(2000);  // Perf-D: bump from Supabase default 1000 to support 400+/area
-    if (error) { console.error(error); return; }
-    state.places = data || [];
-    // I3: Refresh day strip on every area data load
-    renderDayStrip();
-    // I2-extra: rebuild popular tag chips for this area (clear stale selections from previous area)
-    state.tagTagsSelected = new Set();
-    renderTagFacetChips();
-    applyFilters();
+    try {
+      const { data, error } = await sb
+        .from("places")
+        .select("*")
+        .eq("trip_area_id", ta.id)
+        .eq("is_archived", false)
+        .order("created_at", { ascending: false })
+        .limit(2000);  // Perf-D: bump from Supabase default 1000 to support 400+/area
+      if (error) { console.error(error); return; }
+      state.places = data || [];
+      // I3: Refresh day strip on every area data load
+      renderDayStrip();
+      // I2-extra: rebuild popular tag chips for this area (clear stale selections from previous area)
+      state.tagTagsSelected = new Set();
+      renderTagFacetChips();
+      applyFilters();
+    } finally {
+      showMapLoading(false);
+    }
   }
 
   // I2-extra: build chips from the top 8 most-common user tags in current area's places.
@@ -2833,6 +2845,44 @@
         };
       } else {
         ownerDayEl.style.display = "none";
+      }
+    }
+
+    // Owner-only: verified toggle (quick verify panel)
+    const ownerVerEl = $("detailOwnerVerified");
+    if (ownerVerEl) {
+      if (state.role === "owner") {
+        ownerVerEl.style.display = "block";
+        const btn = $("detailOwnerVerifiedBtn");
+        const hint = $("detailOwnerVerifiedHint");
+        const isVer = p.verified !== false;
+        btn.textContent = isVer ? "✓ 已驗證" : "⚠ 未驗證";
+        btn.style.background = isVer ? "var(--accent)" : "";
+        btn.style.color = isVer ? "#fff" : "";
+        const missing = [];
+        if (!p.opening_hours) missing.push("營業時間");
+        if (!p.address) missing.push("地址");
+        hint.textContent = missing.length ? "缺：" + missing.join("、") : "資料齊全";
+        btn.onclick = async () => {
+          const newVal = !isVer;
+          if (newVal && missing.length) {
+            if (!confirm("這個地點仍缺：" + missing.join("、") + "\n\n確定標記為已驗證？")) return;
+          }
+          btn.disabled = true;
+          const { error } = await sb.rpc("update_place_verified", {
+            p_invite_code: state.inviteCode,
+            p_display_name: state.displayName,
+            p_place_id: p.id,
+            p_verified: newVal,
+          });
+          btn.disabled = false;
+          if (error) { alert("更新失敗：" + error.message); return; }
+          p.verified = newVal;
+          applyFilters();
+          openPlaceDetail(p.id);
+        };
+      } else {
+        ownerVerEl.style.display = "none";
       }
     }
 
