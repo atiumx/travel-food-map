@@ -138,7 +138,16 @@
   // -----------------------------------------------------------
   const map = L.map("map", { zoomControl: true }).setView([33.5904, 130.4017], 13);
   L.tileLayer(cfg.MAP_TILE_URL, { attribution: cfg.MAP_ATTRIBUTION, maxZoom: 19 }).addTo(map);
-  const cluster = L.markerClusterGroup({ disableClusteringAtZoom: 16, maxClusterRadius: 40 });
+  // Perf-A: chunkedLoading splits marker addition across animation frames
+  // so 500+ markers don't block the main thread (~16ms per chunk)
+  const cluster = L.markerClusterGroup({
+    disableClusteringAtZoom: 16,
+    maxClusterRadius: 40,
+    chunkedLoading: true,
+    chunkInterval: 50,    // ms per chunk before yielding
+    chunkDelay: 16,       // ms idle between chunks
+    removeOutsideVisibleBounds: true,  // Perf-A: cull markers outside viewport
+  });
   map.addLayer(cluster);
 
   // Station layer (toggleable)
@@ -1170,21 +1179,37 @@
     }
   }
 
+  // Perf-A: marker signature cache — only rebuild DivIcon if visual state changes
+  // Key includes: bookmark state, day_tag, category emoji (anything that affects HTML)
+  function _markerSignature(p) {
+    const bm = getBookmark(p.id) || "";
+    return `${p.category}|${bm}|${p.day_tag ?? ""}`;
+  }
+
   function renderMarkers() {
-    cluster.clearLayers();
-    state.markers.clear();
+    const newSet = new Set();
+    const toAdd = [];
     for (const p of state.filtered) {
       if (p.lat == null || p.lng == null) continue;
+      newSet.add(p.id);
+      const sig = _markerSignature(p);
+      const cached = state.markers.get(p.id);
+      // Perf-A: reuse existing marker if signature unchanged
+      if (cached && cached._sig === sig
+          && cached.getLatLng().lat === p.lat
+          && cached.getLatLng().lng === p.lng) {
+        continue; // already in cluster, no rebuild needed
+      }
+      // Need to (re)build this marker
+      if (cached) cluster.removeLayer(cached);
+
       const emoji = CATEGORY_EMOJI[p.category] || DEFAULT_EMOJI;
       const bm = getBookmark(p.id);
       const bmClass = bm ? ` bookmark-${bm}` : "";
-      // H2: outer wrapper class for favorite glow/size
       const wrapClass = bm === "favorite" ? " bookmark-favorite-wrap" : "";
-      // H2: corner status badge (⭐ / ✅ / ❤)
       const statusBadge = bm
         ? `<span class="status-badge">${BOOKMARK_ICON[bm]}</span>`
         : "";
-      // E2: day badge (small digit bottom-right)
       const dayBadge = (p.day_tag != null)
         ? `<span class="day-badge">${p.day_tag}</span>`
         : "";
@@ -1196,14 +1221,26 @@
         popupAnchor: [0, -32],
       });
       const m = L.marker([p.lat, p.lng], { icon });
+      m._sig = sig;
+      m._placeId = p.id;
       m.bindTooltip(p.name);
       m.on("click", () => openPlaceDetail(p.id));
-      // H3: marker hover ↔ list sync
       m.on("mouseover", () => highlightListItem(p.id, true));
       m.on("mouseout",  () => highlightListItem(p.id, false));
       state.markers.set(p.id, m);
-      cluster.addLayer(m);
+      toAdd.push(m);
     }
+
+    // Perf-A: remove markers no longer in filtered set
+    for (const [pid, m] of state.markers) {
+      if (!newSet.has(pid)) {
+        cluster.removeLayer(m);
+        state.markers.delete(pid);
+      }
+    }
+
+    // Perf-A: bulk addLayers (markercluster chunkedLoading kicks in)
+    if (toAdd.length > 0) cluster.addLayers(toAdd);
   }
 
   // -----------------------------------------------------------
