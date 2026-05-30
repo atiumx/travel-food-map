@@ -994,6 +994,9 @@ body {
           <label style="display:flex;align-items:center;gap:4px;margin-top:4px;font-size:11px;color:var(--muted);">
             <input type="checkbox" id="showStationsToggle" /> 地圖顯示車站
           </label>
+          <label style="display:flex;align-items:center;gap:4px;margin-top:4px;font-size:11px;color:var(--muted);">
+            <input type="checkbox" id="heatToggle" /> <span data-i18n="btn.heat">🔥 熱力圖（按評分加權）</span>
+          </label>
         </div>
         <div>
           <div class="label">時間（分鐘）</div>
@@ -1024,6 +1027,7 @@ body {
   <div class="map-fab-stack" id="mapFabStack">
     <button class="map-fab" id="fabLocate" title="我而家嘅位置" aria-label="我嘅位置">📍</button>
     <button class="map-fab" id="fabWalking" title="步行圈 toggle" aria-label="步行圈">🚶</button>
+    <button class="map-fab" id="fabHeat" data-i18n-title="btn.heat_title" title="熱力圖 toggle" aria-label="熱力圖">🔥</button>
   </div>
 </div>
 
@@ -1236,6 +1240,7 @@ body {
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin=""></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="./config.js"></script>
 <script src="./app.js"></script>

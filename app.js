@@ -110,6 +110,9 @@
     // 車站 preset
     stations: [],            // [{ id, name, name_en, lat, lng, sys, area, line }]
     showStations: false,
+
+    // J1: heatmap layer
+    heatEnabled: false,
   };
   state.bookmarks = loadBookmarks();
 
@@ -270,6 +273,54 @@
   }
 
   // -----------------------------------------------------------
+  // J1: Heatmap layer (rating-weighted density)
+  // -----------------------------------------------------------
+  // Heat intensity per point = (rating - 3.0) / 2.0 clamped to [0.1, 1.0]
+  // → rating 5.0 = full intensity 1.0; rating 3.0 = 0.1; missing rating = 0.3
+  // Re-built on every applyFilters() so heat respects active filters.
+  let heatLayer = null;
+  function heatIntensity(p) {
+    const r = Math.max(p.google_rating || 0, p.tabelog_rating || 0);
+    if (!r) return 0.3;
+    const v = (r - 3.0) / 2.0;
+    return Math.max(0.1, Math.min(1.0, v));
+  }
+  function renderHeatLayer() {
+    // Always destroy first (filter changes → rebuild)
+    if (heatLayer) {
+      try { map.removeLayer(heatLayer); } catch (e) {}
+      heatLayer = null;
+    }
+    if (!state.heatEnabled) return;
+    if (typeof L.heatLayer !== "function") {
+      console.warn("leaflet.heat not loaded");
+      return;
+    }
+    const pts = [];
+    for (const p of state.filtered || []) {
+      if (p.lat == null || p.lng == null) continue;
+      pts.push([p.lat, p.lng, heatIntensity(p)]);
+    }
+    if (pts.length === 0) return;
+    heatLayer = L.heatLayer(pts, {
+      radius: 28,
+      blur: 22,
+      maxZoom: 17,
+      minOpacity: 0.35,
+      gradient: { 0.2: "#3a78c2", 0.4: "#5ac08a", 0.6: "#e6c54a", 0.8: "#e08a3a", 1.0: "#c23a3a" },
+    });
+    heatLayer.addTo(map);
+  }
+  function setHeatEnabled(on) {
+    state.heatEnabled = !!on;
+    const cb = document.getElementById("heatToggle");
+    if (cb) cb.checked = state.heatEnabled;
+    const fab = document.getElementById("fabHeat");
+    if (fab) fab.classList.toggle("active", state.heatEnabled);
+    renderHeatLayer();
+  }
+
+  // -----------------------------------------------------------
   // DOM refs
   // -----------------------------------------------------------
   const $ = (id) => document.getElementById(id);
@@ -307,9 +358,9 @@
   // I4: i18n (zh-TW / en / ja)
   // -----------------------------------------------------------
   const I18N = {
-    "zh-TW": { "app.title":"旅行美食地圖", "role.guest":"訪客", "search.placeholder":"搜尋名稱／標籤／備註", "filter.all_cuisine":"所有菜系", "filter.all_category":"所有分類", "filter.all_price":"所有價位", "filter.hours_all":"營業時間：所有", "filter.hours_now":"而家開緊", "filter.hours_today":"今日有開", "filter.hours_title":"營業時間篩選", "filter.bookmark_all":"收藏：所有", "filter.bookmark_wish":"⭐ 想去", "filter.bookmark_been":"✅ 已去", "filter.bookmark_fav":"❤️ 最愛", "filter.bookmark_none":"— 未收藏", "filter.bookmark_title":"收藏狀態篩選", "filter.day_all":"日子：所有", "filter.day_none":"— 未分配", "filter.day_title":"日子篩選", "filter.sort_title":"排序", "sort.default":"排序：預設", "sort.distance":"距離（步行圈）", "sort.rating":"評分（高→低）", "sort.recent":"最新加入", "sort.name":"名稱（A→Z）", "sort.random":"隨機", "btn.here":"📍 我而家", "btn.here_title":"用我而家位置做起點", "btn.share_title":"複製連結（含篩選）" },
-    "en": { "app.title":"Travel Food Map", "role.guest":"Guest", "search.placeholder":"Search name / tags / notes", "filter.all_cuisine":"All cuisines", "filter.all_category":"All categories", "filter.all_price":"All prices", "filter.hours_all":"Hours: All", "filter.hours_now":"Open now", "filter.hours_today":"Open today", "filter.hours_title":"Filter by opening hours", "filter.bookmark_all":"Bookmark: All", "filter.bookmark_wish":"⭐ Wishlist", "filter.bookmark_been":"✅ Visited", "filter.bookmark_fav":"❤️ Favorite", "filter.bookmark_none":"— Unbookmarked", "filter.bookmark_title":"Filter by bookmark state", "filter.day_all":"Day: All", "filter.day_none":"— Unassigned", "filter.day_title":"Filter by trip day", "filter.sort_title":"Sort", "sort.default":"Sort: Default", "sort.distance":"Distance (walking)", "sort.rating":"Rating (high→low)", "sort.recent":"Recently added", "sort.name":"Name (A→Z)", "sort.random":"Random", "btn.here":"📍 Here", "btn.here_title":"Use current location as anchor", "btn.share_title":"Copy share link (with filters)" },
-    "ja": { "app.title":"旅行グルメマップ", "role.guest":"ゲスト", "search.placeholder":"名称／タグ／メモを検索", "filter.all_cuisine":"全ての料理", "filter.all_category":"全カテゴリ", "filter.all_price":"全価格帯", "filter.hours_all":"営業時間：全て", "filter.hours_now":"今開店中", "filter.hours_today":"本日営業", "filter.hours_title":"営業時間フィルター", "filter.bookmark_all":"ブックマーク：全て", "filter.bookmark_wish":"⭐ 行きたい", "filter.bookmark_been":"✅ 行った", "filter.bookmark_fav":"❤️ お気に入り", "filter.bookmark_none":"— 未登録", "filter.bookmark_title":"ブックマーク状態", "filter.day_all":"日付：全て", "filter.day_none":"— 未割当", "filter.day_title":"旅程日フィルター", "filter.sort_title":"並び替え", "sort.default":"並び：デフォルト", "sort.distance":"距離（徒歩圏）", "sort.rating":"評価（高→低）", "sort.recent":"新着順", "sort.name":"名前（A→Z）", "sort.random":"ランダム", "btn.here":"📍 現在地", "btn.here_title":"現在地をアンカーに設定", "btn.share_title":"共有リンクをコピー" }
+    "zh-TW": { "app.title":"旅行美食地圖", "role.guest":"訪客", "search.placeholder":"搜尋名稱／標籤／備註", "filter.all_cuisine":"所有菜系", "filter.all_category":"所有分類", "filter.all_price":"所有價位", "filter.hours_all":"營業時間：所有", "filter.hours_now":"而家開緊", "filter.hours_today":"今日有開", "filter.hours_title":"營業時間篩選", "filter.bookmark_all":"收藏：所有", "filter.bookmark_wish":"⭐ 想去", "filter.bookmark_been":"✅ 已去", "filter.bookmark_fav":"❤️ 最愛", "filter.bookmark_none":"— 未收藏", "filter.bookmark_title":"收藏狀態篩選", "filter.day_all":"日子：所有", "filter.day_none":"— 未分配", "filter.day_title":"日子篩選", "filter.sort_title":"排序", "sort.default":"排序：預設", "sort.distance":"距離（步行圈）", "sort.rating":"評分（高→低）", "sort.recent":"最新加入", "sort.name":"名稱（A→Z）", "sort.random":"隨機", "btn.here":"📍 我而家", "btn.here_title":"用我而家位置做起點", "btn.share_title":"複製連結（含篩選）", "btn.heat":"🔥 熱力圖（按評分加權）", "btn.heat_title":"熱力圖 toggle" },
+    "en": { "app.title":"Travel Food Map", "role.guest":"Guest", "search.placeholder":"Search name / tags / notes", "filter.all_cuisine":"All cuisines", "filter.all_category":"All categories", "filter.all_price":"All prices", "filter.hours_all":"Hours: All", "filter.hours_now":"Open now", "filter.hours_today":"Open today", "filter.hours_title":"Filter by opening hours", "filter.bookmark_all":"Bookmark: All", "filter.bookmark_wish":"⭐ Wishlist", "filter.bookmark_been":"✅ Visited", "filter.bookmark_fav":"❤️ Favorite", "filter.bookmark_none":"— Unbookmarked", "filter.bookmark_title":"Filter by bookmark state", "filter.day_all":"Day: All", "filter.day_none":"— Unassigned", "filter.day_title":"Filter by trip day", "filter.sort_title":"Sort", "sort.default":"Sort: Default", "sort.distance":"Distance (walking)", "sort.rating":"Rating (high→low)", "sort.recent":"Recently added", "sort.name":"Name (A→Z)", "sort.random":"Random", "btn.here":"📍 Here", "btn.here_title":"Use current location as anchor", "btn.share_title":"Copy share link (with filters)", "btn.heat":"🔥 Heatmap (rating-weighted)", "btn.heat_title":"Toggle heatmap layer" },
+    "ja": { "app.title":"旅行グルメマップ", "role.guest":"ゲスト", "search.placeholder":"名称／タグ／メモを検索", "filter.all_cuisine":"全ての料理", "filter.all_category":"全カテゴリ", "filter.all_price":"全価格帯", "filter.hours_all":"営業時間：全て", "filter.hours_now":"今開店中", "filter.hours_today":"本日営業", "filter.hours_title":"営業時間フィルター", "filter.bookmark_all":"ブックマーク：全て", "filter.bookmark_wish":"⭐ 行きたい", "filter.bookmark_been":"✅ 行った", "filter.bookmark_fav":"❤️ お気に入り", "filter.bookmark_none":"— 未登録", "filter.bookmark_title":"ブックマーク状態", "filter.day_all":"日付：全て", "filter.day_none":"— 未割当", "filter.day_title":"旅程日フィルター", "filter.sort_title":"並び替え", "sort.default":"並び：デフォルト", "sort.distance":"距離（徒歩圏）", "sort.rating":"評価（高→低）", "sort.recent":"新着順", "sort.name":"名前（A→Z）", "sort.random":"ランダム", "btn.here":"📍 現在地", "btn.here_title":"現在地をアンカーに設定", "btn.share_title":"共有リンクをコピー", "btn.heat":"🔥 ヒートマップ（評価加重）", "btn.heat_title":"ヒートマップを切り替え" }
   };
   function getLang() { return localStorage.getItem("tfm_lang") || "zh-TW"; }
   function setLang(l) { localStorage.setItem("tfm_lang", l); applyI18n(); }
@@ -992,6 +1043,16 @@
       renderStationMarkers();
     });
 
+    // J1: heatmap toggle (desktop checkbox + mobile FAB)
+    const heatToggleEl = document.getElementById("heatToggle");
+    if (heatToggleEl) {
+      heatToggleEl.addEventListener("change", (e) => setHeatEnabled(e.target.checked));
+    }
+    const fabHeatEl = document.getElementById("fabHeat");
+    if (fabHeatEl) {
+      fabHeatEl.addEventListener("click", () => setHeatEnabled(!state.heatEnabled));
+    }
+
     // 地圖中心模式 anchor：拖動地圖要重新計
     map.on("moveend", () => {
       if (!state.walking.enabled) return;
@@ -1229,6 +1290,7 @@
     renderList();
     renderMarkers();
     renderWalkingCircles();
+    renderHeatLayer();
   }
 
   function applySort(hasDistance) {
