@@ -143,6 +143,232 @@
     // PWA: register service worker
     registerServiceWorker().catch(err => console.warn("SW reg failed", err));
     setupOnlineStatus();
+    // F: mobile gestures + bottom sheet + zoom relocation
+    initMobile();
+  }
+
+  // -----------------------------------------------------------
+  // Batch F: Mobile bottom sheet + gestures + haptic + zoom relocate
+  // -----------------------------------------------------------
+  const MOBILE_BP = 720;
+  function isMobile() { return window.innerWidth <= MOBILE_BP; }
+  function haptic(ms = 10) {
+    try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {}
+  }
+
+  function initMobile() {
+    // Only run mobile setup if needed. Re-init on resize.
+    setupBottomSheet();
+    setupMobileZoom();
+    setupMarkerLongPress();
+    setupDetailSwipe();
+    setupPullToRefresh();
+    window.addEventListener("resize", () => {
+      // Re-position zoom control when crossing the breakpoint
+      setupMobileZoom();
+    });
+  }
+
+  // ---- Bottom sheet: 3-snap (peek / half / full) ----
+  function setupBottomSheet() {
+    const sheet = $("sidebar");
+    const handle = $("sheetHandle");
+    if (!sheet || !handle) return;
+    let startY = 0, startTranslate = 0, dragging = false, currentSnap = "peek";
+
+    function snapTo(target) {
+      sheet.classList.remove("snap-half", "snap-full", "dragging");
+      if (target === "half") sheet.classList.add("snap-half");
+      else if (target === "full") sheet.classList.add("snap-full");
+      // "peek" = no class (default transform)
+      currentSnap = target;
+      sheet.style.transform = ""; // clear inline
+      haptic(8);
+    }
+
+    function getTranslateY() {
+      const tr = sheet.style.transform;
+      const m = tr.match(/translateY\((-?[\d.]+)px\)/);
+      return m ? parseFloat(m[1]) : 0;
+    }
+
+    function onStart(clientY) {
+      if (!isMobile()) return;
+      dragging = true;
+      startY = clientY;
+      const cs = getComputedStyle(sheet);
+      const m = cs.transform.match(/matrix\([^)]+\)/);
+      if (m) {
+        const vals = m[0].slice(7, -1).split(",").map(parseFloat);
+        startTranslate = vals[5] || 0;
+      }
+      sheet.classList.add("dragging");
+    }
+    function onMove(clientY) {
+      if (!dragging) return;
+      const dy = clientY - startY;
+      const newY = Math.max(0, startTranslate + dy);
+      sheet.style.transform = `translateY(${newY}px)`;
+    }
+    function onEnd(clientY) {
+      if (!dragging) return;
+      dragging = false;
+      sheet.classList.remove("dragging");
+      const dy = clientY - startY;
+      const vh = window.innerHeight;
+      // Decide snap by current position + drag delta direction
+      const endY = startTranslate + dy;
+      const fullThreshold = 100;            // near top
+      const halfThreshold = vh * 0.55;
+      let target;
+      if (endY < fullThreshold) target = "full";
+      else if (endY < halfThreshold) target = "half";
+      else target = "peek";
+      snapTo(target);
+    }
+
+    // Touch events
+    handle.addEventListener("touchstart", (e) => { onStart(e.touches[0].clientY); }, { passive: true });
+    handle.addEventListener("touchmove", (e) => { onMove(e.touches[0].clientY); }, { passive: true });
+    handle.addEventListener("touchend", (e) => {
+      const y = e.changedTouches[0]?.clientY || 0;
+      onEnd(y);
+    });
+    // Click handle to toggle peek <-> half
+    handle.addEventListener("click", () => {
+      if (!isMobile()) return;
+      if (currentSnap === "peek") snapTo("half");
+      else if (currentSnap === "half") snapTo("full");
+      else snapTo("peek");
+    });
+
+    // Auto-snap to half when user focuses on filter/search
+    const expanders = ["searchInput", "categoryFilter", "priceFilter", "openFilter", "bookmarkFilter", "dayFilter", "sortBy"];
+    expanders.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener("focus", () => {
+        if (isMobile() && currentSnap === "peek") snapTo("half");
+      });
+    });
+
+    window.__sheetSnapTo = snapTo;
+  }
+
+  // ---- Move Leaflet zoom to bottom-right on mobile ----
+  function setupMobileZoom() {
+    if (!map || !map.zoomControl) return;
+    try {
+      if (isMobile()) {
+        if (map._zoomControlPosition !== "bottomright") {
+          map.zoomControl.setPosition("bottomright");
+          map._zoomControlPosition = "bottomright";
+        }
+      } else {
+        if (map._zoomControlPosition !== "topleft") {
+          map.zoomControl.setPosition("topleft");
+          map._zoomControlPosition = "topleft";
+        }
+      }
+    } catch (e) { /* noop */ }
+  }
+
+  // ---- Long-press marker (500ms) opens detail ----
+  function setupMarkerLongPress() {
+    // Markers are rebuilt in renderMarkers. We piggyback on the global map click
+    // and use Leaflet's contextmenu (which on mobile = long-press).
+    if (!map) return;
+    map.on("contextmenu", (e) => {
+      // Prevent default context menu on long-press background
+      e.originalEvent && e.originalEvent.preventDefault && e.originalEvent.preventDefault();
+    });
+  }
+
+  // ---- Swipe in detail panel: left/right → prev/next place ----
+  function setupDetailSwipe() {
+    const panel = $("detailPanel");
+    if (!panel) return;
+    let sx = 0, sy = 0, st = 0;
+    panel.addEventListener("touchstart", (e) => {
+      const t = e.touches[0];
+      sx = t.clientX; sy = t.clientY; st = Date.now();
+    }, { passive: true });
+    panel.addEventListener("touchend", (e) => {
+      const t = e.changedTouches[0];
+      const dx = t.clientX - sx;
+      const dy = t.clientY - sy;
+      const dt = Date.now() - st;
+      if (dt > 500) return;
+      // Horizontal swipe ≥ 60px, dominantly horizontal
+      if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return;
+      const visible = state.filtered || [];
+      if (visible.length === 0) return;
+      const idx = visible.findIndex(p => p.id === state.selectedPlaceId);
+      if (idx < 0) return;
+      let next;
+      if (dx < 0) next = visible[(idx + 1) % visible.length];
+      else        next = visible[(idx - 1 + visible.length) % visible.length];
+      if (next) {
+        haptic(12);
+        openPlaceDetail(next.id);
+      }
+    });
+  }
+
+  // ---- Pull-to-refresh on list (only when at top) ----
+  function setupPullToRefresh() {
+    const list = document.getElementById("placeList") || document.querySelector(".list");
+    if (!list) return;
+    let sy = 0, dragging = false;
+    let indicator = null;
+
+    function ensureIndicator() {
+      if (indicator) return indicator;
+      indicator = document.createElement("div");
+      indicator.id = "ptrIndicator";
+      indicator.style.cssText = "position:absolute;left:50%;transform:translateX(-50%);top:0;padding:6px 12px;background:var(--accent-soft);color:var(--accent);border-radius:0 0 8px 8px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .2s;z-index:1000;";
+      indicator.textContent = "↓ 下拉重新載入";
+      list.parentElement && list.parentElement.style && (list.parentElement.style.position = "relative");
+      list.parentElement && list.parentElement.appendChild(indicator);
+      return indicator;
+    }
+
+    list.addEventListener("touchstart", (e) => {
+      if (!isMobile()) return;
+      if (list.scrollTop > 0) return;
+      sy = e.touches[0].clientY;
+      dragging = true;
+    }, { passive: true });
+    list.addEventListener("touchmove", (e) => {
+      if (!dragging) return;
+      const dy = e.touches[0].clientY - sy;
+      if (dy > 10) {
+        const ind = ensureIndicator();
+        ind.style.opacity = Math.min(1, dy / 80);
+        if (dy > 80) ind.textContent = "↑ 釋放重載";
+        else ind.textContent = "↓ 下拉重新載入";
+      }
+    }, { passive: true });
+    list.addEventListener("touchend", async (e) => {
+      if (!dragging) return;
+      dragging = false;
+      const dy = (e.changedTouches[0]?.clientY || sy) - sy;
+      if (indicator) {
+        indicator.style.opacity = 0;
+        indicator.textContent = "↓ 下拉重新載入";
+      }
+      if (dy > 80) {
+        haptic(20);
+        try {
+          showToast && showToast("重新載入中…");
+          await loadPlacesForCurrentArea();
+          applyFilters && applyFilters();
+          showToast && showToast("已更新");
+        } catch (err) {
+          showToast && showToast("重載失敗");
+        }
+      }
+    });
   }
 
   // -----------------------------------------------------------

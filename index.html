@@ -11,8 +11,26 @@
 <link rel="icon" href="icons/icon-512.png" sizes="512x512" type="image/png" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="美食地圖" />
+
+<!-- iOS PWA splash screens (apple-touch-startup-image) -->
+<link rel="apple-touch-startup-image" href="icons/splash/iphone-15-pro-max-1290x2796.png"
+      media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" />
+<link rel="apple-touch-startup-image" href="icons/splash/iphone-15-pro-1179x2556.png"
+      media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" />
+<link rel="apple-touch-startup-image" href="icons/splash/iphone-13-14-1170x2532.png"
+      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
+<link rel="apple-touch-startup-image" href="icons/splash/iphone-x-xs-1125x2436.png"
+      media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
+<link rel="apple-touch-startup-image" href="icons/splash/iphone-xr-828x1792.png"
+      media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)" />
+<link rel="apple-touch-startup-image" href="icons/splash/iphone-se-750x1334.png"
+      media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" />
+
+<!-- iOS PWA navbar/url bar tint -->
+<meta name="format-detection" content="telephone=no" />
 
 <link rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -33,6 +51,12 @@
   --accent: #b8412c;
   --accent-soft: #f1d9d2;
   --shadow: 0 2px 8px rgba(0,0,0,0.06);
+  /* F1: iOS safe-area + tap target */
+  --tap-min: 44px;
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
@@ -41,12 +65,18 @@ body {
   background: var(--bg);
   color: var(--text);
   font-size: 14px;
+  /* F3: prevent overscroll bounce on iOS */
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: rgba(184,65,44,0.15);
+  -webkit-text-size-adjust: 100%;
 }
 
 .app {
   display: grid;
   grid-template-columns: 360px 1fr;
   height: 100vh;
+  /* F1: dvh fallback for iOS Safari URL bar */
+  height: 100dvh;
 }
 
 .sidebar {
@@ -370,17 +400,223 @@ body {
 }
 .toast.show { opacity: 1; }
 
+/* Hide sheet handle on desktop */
+.sheet-handle { display: none; }
+
+/* ===================================================================
+   Batch F: Mobile optimization
+   =================================================================== */
 @media (max-width: 720px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-  .sidebar { max-height: 45vh; }
-  .detail { right: 8px; left: 8px; width: auto; top: 8px; max-height: 50vh; }
+
+  /* ---- F2: Map fullscreen + sidebar as bottom sheet ---- */
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr; /* map fills entire viewport */
+    position: relative;
+  }
+  .map-wrap, #map {
+    height: 100dvh;
+    width: 100%;
+  }
+
+  .sidebar {
+    /* Bottom-sheet anchored to viewport bottom */
+    position: fixed;
+    left: 0; right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.12);
+    z-index: 900;
+    transform: translateY(calc(100% - var(--sheet-peek, 140px)));
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
+    max-height: calc(100dvh - 44px - var(--sat));
+    padding-bottom: var(--sab);
+  }
+  .sidebar.snap-half { transform: translateY(48dvh); }
+  .sidebar.snap-full { transform: translateY(44px); transform: translateY(calc(44px + var(--sat))); }
+  .sidebar.dragging { transition: none; }
+
+  /* Drag handle */
+  .sheet-handle {
+    display: flex !important;
+    justify-content: center;
+    align-items: center;
+    padding: 8px 0 6px;
+    cursor: grab;
+    touch-action: none;
+  }
+  .sheet-handle::before {
+    content: "";
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #c8c4ba;
+  }
+  .sheet-handle:active { cursor: grabbing; }
+
+  .sidebar header {
+    padding: 4px 16px 10px;
+  }
+  .sidebar header h1 { font-size: 17px; }
+
+  /* ---- F1: tap targets ≥44px + font 16px (no iOS zoom) ---- */
+  .filters select,
+  .filters input,
+  .add-row select,
+  .add-row input,
+  .add-row textarea,
+  .form-row select,
+  .form-row input,
+  .form-row textarea {
+    min-height: var(--tap-min);
+    padding: 10px 12px;
+    font-size: 16px; /* prevent iOS auto-zoom on focus */
+    border-radius: 8px;
+  }
+  .filters { padding: 8px 14px; gap: 10px; }
+
+  /* ---- F2-6: horizontal scrolling filter chip row ---- */
+  .filter-row {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 8px;
+    margin: 0 -14px;
+    padding: 2px 14px 4px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+  .filter-row::-webkit-scrollbar { display: none; }
+  .filter-row > * {
+    flex: 0 0 auto;
+    min-width: 130px;
+    width: auto;
+    scroll-snap-align: start;
+  }
+
+  /* Buttons ≥ 44px tap target */
+  button,
+  .btn-sm,
+  .btn,
+  input[type="button"],
+  input[type="submit"] {
+    min-height: 38px;
+  }
+  .btn,
+  .filters button,
+  .add-row button,
+  .footer-row button,
+  .invite-row button {
+    min-height: var(--tap-min);
+    padding: 10px 14px;
+    font-size: 15px;
+  }
+  .btn-sm {
+    min-height: 38px;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  /* Place list rows: bigger touch target */
+  .place-item {
+    padding: 14px 16px;
+    min-height: 56px;
+  }
+  .place-item .meta { font-size: 13px; }
+
+  /* ---- F2-7: Leaflet zoom on right-bottom for thumb reach ---- */
+  .leaflet-control-zoom {
+    margin-right: calc(12px + var(--sar)) !important;
+    margin-bottom: calc(160px + var(--sab)) !important; /* above peek sheet */
+  }
+  .leaflet-top.leaflet-left .leaflet-control-zoom {
+    display: none;
+  }
+  /* Move zoom to bottom-right via JS class */
+  .leaflet-bottom.leaflet-right .leaflet-control-zoom {
+    display: block;
+  }
+  .leaflet-control-zoom a {
+    width: 40px !important;
+    height: 40px !important;
+    line-height: 38px !important;
+    font-size: 22px !important;
+  }
+
+  /* ---- Detail panel: full-screen modal on mobile ---- */
+  .detail {
+    position: fixed;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0;
+    z-index: 1000;
+    padding-top: calc(12px + var(--sat));
+    padding-bottom: calc(12px + var(--sab));
+  }
+  .detail .close-btn {
+    min-height: var(--tap-min);
+    min-width: var(--tap-min);
+  }
+
+  /* Modals: full-screen on mobile */
+  .modal-bg .modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: 100dvh;
+    border-radius: 0;
+    padding-top: calc(16px + var(--sat));
+    padding-bottom: calc(16px + var(--sab));
+  }
+
+  /* Toast moved above sheet */
+  .toast {
+    bottom: calc(160px + var(--sab)) !important;
+  }
+
+  /* Hide anchor-list scrollbar */
+  .anchor-list { max-height: 30dvh; overflow-y: auto; }
+
+  /* Larger anchor-remove tap */
+  .anchor-remove {
+    min-width: 32px;
+    min-height: 32px;
+    font-size: 18px;
+  }
+
+  /* Active state for buttons */
+  button:active, .btn:active, .btn-sm:active,
+  .place-item:active {
+    opacity: 0.72;
+    transition: opacity 0.05s;
+  }
+}
+
+/* iOS PWA standalone tweaks */
+@media (display-mode: standalone) {
+  body { user-select: none; -webkit-user-select: none; }
+  /* status bar safe area when launched as app */
+  .sidebar header { padding-top: calc(14px + var(--sat)); }
 }
 </style>
 </head>
 <body>
 
 <div class="app">
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
+    <div class="sheet-handle" id="sheetHandle" aria-label="拖拉調整面板高度"></div>
     <header>
       <h1>旅行美食地圖</h1>
       <span id="roleBadge" class="role-badge guest">訪客</span>
@@ -388,7 +624,7 @@ body {
 
     <div class="filters">
       <select id="tripAreaSelect"></select>
-      <input id="searchInput" type="search" placeholder="搜尋名稱／標籤／備註" />
+      <input id="searchInput" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="搜尋名稱／標籤／備註" />
       <div class="filter-row">
         <select id="categoryFilter"><option value="">所有分類</option></select>
         <select id="priceFilter">
