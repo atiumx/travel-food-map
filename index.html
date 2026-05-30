@@ -90,10 +90,41 @@ body {
 .place-item .name { font-weight: 600; font-size: 14px; }
 .place-item .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .place-item .tags { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
+.place-item .badge-open {
+  display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 3px;
+  margin-left: 4px; font-weight: 500;
+}
+.badge-open.open { background: #d6ead7; color: #2f6f3a; }
+.badge-open.closed { background: #f1d9d2; color: var(--accent); }
+.badge-open.unknown { background: #eceae3; color: var(--muted); }
+.place-item .bookmark-icon {
+  font-size: 13px; margin-right: 3px;
+}
 .tag {
   font-size: 11px; padding: 1px 6px; border-radius: 4px;
   background: #eceae3; color: var(--muted);
 }
+
+/* Emoji marker (food category icon on map) */
+.emoji-marker {
+  background: transparent !important;
+  border: none !important;
+}
+.emoji-marker-inner {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  background: #fff;
+  border: 2px solid var(--accent);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  font-size: 16px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  cursor: pointer;
+}
+.emoji-marker-inner span { transform: rotate(45deg); display: block; line-height: 1; }
+.emoji-marker-inner.bookmark-favorite { border-color: #c87f0a; }
+.emoji-marker-inner.bookmark-wishlist { border-color: #2c6fb8; }
+.emoji-marker-inner.bookmark-been { border-color: #3a8a3a; opacity: 0.6; }
 
 .footer-actions {
   padding: 10px 16px; border-top: 1px solid var(--border);
@@ -229,6 +260,19 @@ body {
 }
 .walking-status.error { color: var(--accent); }
 
+.bookmark-btn { opacity: 0.6; transition: opacity 0.15s; }
+.bookmark-btn.active { opacity: 1; background: var(--accent-soft); border-color: var(--accent); }
+.bookmark-btn:hover { opacity: 1; }
+
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: rgba(31,29,26,0.92); color: #fff;
+  padding: 8px 16px; border-radius: 6px; font-size: 13px;
+  z-index: 3000; opacity: 0; transition: opacity 0.2s;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; }
+
 @media (max-width: 720px) {
   .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .sidebar { max-height: 45vh; }
@@ -257,6 +301,39 @@ body {
           <option value="¥¥¥">¥¥¥</option>
           <option value="¥¥¥¥">¥¥¥¥</option>
         </select>
+      </div>
+      <div class="filter-row">
+        <select id="openFilter" title="營業時間篩選">
+          <option value="">營業時間：所有</option>
+          <option value="now">而家開緊</option>
+          <option value="today">今日有開</option>
+          <option value="weekday-0">星期日有開</option>
+          <option value="weekday-1">星期一有開</option>
+          <option value="weekday-2">星期二有開</option>
+          <option value="weekday-3">星期三有開</option>
+          <option value="weekday-4">星期四有開</option>
+          <option value="weekday-5">星期五有開</option>
+          <option value="weekday-6">星期六有開</option>
+        </select>
+        <select id="bookmarkFilter" title="收藏狀態篩選">
+          <option value="">收藏：所有</option>
+          <option value="wishlist">⭐ 想去</option>
+          <option value="been">✅ 已去</option>
+          <option value="favorite">❤️ 最愛</option>
+          <option value="none">— 未收藏</option>
+        </select>
+      </div>
+      <div class="filter-row">
+        <select id="sortBy" title="排序">
+          <option value="default">排序：預設</option>
+          <option value="distance">距離（步行圈）</option>
+          <option value="rating">評分（高→低）</option>
+          <option value="recent">最新加入</option>
+          <option value="name">名稱（A→Z）</option>
+          <option value="random">隨機</option>
+        </select>
+        <button class="btn" id="hereBtn" title="用我而家位置做起點" style="flex:0 0 auto;padding:7px 10px;">📍 我而家</button>
+        <button class="btn" id="shareBtn" title="複製連結（含篩選）" style="flex:0 0 auto;padding:7px 10px;">🔗</button>
       </div>
     </div>
 
@@ -306,6 +383,13 @@ body {
   <button class="close-btn" id="detailClose">×</button>
   <h2 id="detailName"></h2>
   <div class="meta" id="detailMeta"></div>
+  <div id="detailHours" style="font-size:12px;margin:4px 0;"></div>
+  <div id="detailAddress" style="font-size:12px;color:var(--muted);margin:4px 0;"></div>
+  <div id="detailBookmarks" style="display:flex;gap:6px;margin:8px 0;">
+    <button class="btn bookmark-btn" data-status="wishlist" style="font-size:12px;padding:4px 8px;">⭐ 想去</button>
+    <button class="btn bookmark-btn" data-status="been" style="font-size:12px;padding:4px 8px;">✅ 已去</button>
+    <button class="btn bookmark-btn" data-status="favorite" style="font-size:12px;padding:4px 8px;">❤️ 最愛</button>
+  </div>
   <div class="links" id="detailLinks"></div>
   <div id="detailNote" style="margin-top:6px;font-size:13px;color:var(--text);"></div>
 
@@ -406,6 +490,8 @@ body {
     </div>
   </div>
 </div>
+
+<div id="toast" class="toast"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
