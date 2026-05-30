@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Reset — Travel Food Map</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; padding: 20px; background:#111; color:#eee; }
+  h1 { font-size: 18px; margin: 0 0 12px; }
+  pre { background:#222; padding:10px; border-radius:6px; font-size:12px; white-space:pre-wrap; }
+  .ok { color:#7fff8a; }
+  .err { color:#ff8a7f; }
+  button { padding: 14px 20px; font-size:16px; background:#3a7bff; color:#fff; border:0; border-radius:6px; margin-top:14px; width:100%; }
+</style>
+</head>
+<body>
+<h1>清除 Travel Food Map 快取</h1>
+<pre id="log">準備中…</pre>
+<button id="goBtn" style="display:none">前往主頁</button>
+<script>
+(async () => {
+  const log = document.getElementById('log');
+  const lines = [];
+  function add(s, cls){ lines.push(cls ? `<span class="${cls}">${s}</span>` : s); log.innerHTML = lines.join('\n'); }
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      add(`找到 ${regs.length} 個 Service Worker`);
+      for (const r of regs) {
+        const ok = await r.unregister();
+        add(`  unregister: ${ok ? 'OK' : 'FAIL'} (${r.scope})`, ok ? 'ok' : 'err');
+      }
+    } else {
+      add('瀏覽器不支援 Service Worker');
+    }
+    if (window.caches) {
+      const keys = await caches.keys();
+      add(`找到 ${keys.length} 個快取`);
+      for (const k of keys) {
+        const ok = await caches.delete(k);
+        add(`  delete: ${ok ? 'OK' : 'FAIL'} (${k})`, ok ? 'ok' : 'err');
+      }
+    }
+    try { localStorage.clear(); add('localStorage 已清空', 'ok'); } catch (e) { add('localStorage 清空失敗: '+e.message, 'err'); }
+    try { sessionStorage.clear(); add('sessionStorage 已清空', 'ok'); } catch (e) {}
+    add('\n完成。3 秒後自動返回主頁…', 'ok');
+    document.getElementById('goBtn').style.display = 'block';
+    document.getElementById('goBtn').onclick = () => { location.href = './index.html?ts=' + Date.now(); };
+    setTimeout(() => { location.href = './index.html?ts=' + Date.now(); }, 3000);
+  } catch (e) {
+    add('錯誤: ' + e.message, 'err');
+  }
+})();
+</script>
+</body>
+</html>
