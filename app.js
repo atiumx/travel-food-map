@@ -766,9 +766,22 @@
     if (!sheet || !handle) return;
     let startY = 0, startTranslate = 0, dragging = false, currentSnap = "peek";
 
+    // Continuously sync FAB position with sheet's actual top (handles drag mid-flight + transitionend)
+    function updateFabFromSheet() {
+      if (!isMobile()) return;
+      const rect = sheet.getBoundingClientRect();
+      const vh = window.innerHeight;
+      // FAB sits 12px above sheet top edge
+      const fabBottom = vh - rect.top + 12;
+      document.documentElement.style.setProperty("--fab-bottom", `${fabBottom}px`);
+      // Hide FAB when sheet is near top (< 140px from viewport top): map barely visible
+      const tooHigh = rect.top < 140;
+      document.body.classList.toggle("fab-hidden", tooHigh);
+    }
+
     function snapTo(target) {
       sheet.classList.remove("snap-half", "snap-full", "dragging");
-      // Mirror snap state on <body> so FAB / sticky-filter CSS can react
+      // Mirror snap state on <body> for sticky-filter CSS & any external observers
       document.body.classList.remove("sheet-peek", "sheet-half", "sheet-full");
       if (target === "half") {
         sheet.classList.add("snap-half");
@@ -779,10 +792,11 @@
       } else {
         document.body.classList.add("sheet-peek");
       }
-      // "peek" = no class on sheet (uses default top from CSS var)
       currentSnap = target;
       sheet.style.top = ""; // clear inline so CSS class wins
       haptic(8);
+      // Update FAB position now and after transition
+      requestAnimationFrame(updateFabFromSheet);
     }
 
     function onStart(clientY) {
@@ -801,6 +815,7 @@
       const maxTop = vh - 80; // never push beyond near-bottom
       const newTop = Math.max(minTop, Math.min(maxTop, startTranslate + dy));
       sheet.style.top = `${newTop}px`;
+      updateFabFromSheet();
     }
     function onEnd(clientY) {
       if (!dragging) return;
@@ -845,8 +860,16 @@
     });
 
     window.__sheetSnapTo = snapTo;
-    // Initialize body sheet-peek class so FAB sits at correct default offset
+    // Initialize body sheet-peek class + first FAB sync
     document.body.classList.add("sheet-peek");
+    // Initial sync after layout settles
+    requestAnimationFrame(() => requestAnimationFrame(updateFabFromSheet));
+    // Re-sync on sheet CSS transition end (snap animation) + on resize
+    sheet.addEventListener("transitionend", (e) => {
+      if (e.propertyName === "top") updateFabFromSheet();
+    });
+    window.addEventListener("resize", updateFabFromSheet);
+    window.addEventListener("orientationchange", () => setTimeout(updateFabFromSheet, 100));
   }
 
   // ---- Move Leaflet zoom to bottom-right on mobile ----
