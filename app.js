@@ -163,10 +163,95 @@
     setupMarkerLongPress();
     setupDetailSwipe();
     setupPullToRefresh();
+    setupMapFabs();
     window.addEventListener("resize", () => {
       // Re-position zoom control when crossing the breakpoint
       setupMobileZoom();
     });
+  }
+
+  // ---- G1: Map FABs (mobile only) ----
+  let _userLocMarker = null;
+  let _userLocCircle = null;
+  function setupMapFabs() {
+    const fabLocate = $("fabLocate");
+    const fabWalking = $("fabWalking");
+    if (!fabLocate || !fabWalking) return;
+
+    fabLocate.addEventListener("click", () => {
+      haptic(15);
+      if (!navigator.geolocation) {
+        toast("瀏覽器唔支援定位");
+        return;
+      }
+      fabLocate.disabled = true;
+      fabLocate.textContent = "…";
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+          map.setView([lat, lng], 16);
+          if (_userLocMarker) { try { map.removeLayer(_userLocMarker); } catch(e){} }
+          if (_userLocCircle) { try { map.removeLayer(_userLocCircle); } catch(e){} }
+          _userLocMarker = L.circleMarker([lat, lng], {
+            radius: 7, color: "#1d6fb8", weight: 2, fillColor: "#3a9bff", fillOpacity: 0.9
+          }).addTo(map);
+          if (accuracy && accuracy < 500) {
+            _userLocCircle = L.circle([lat, lng], {
+              radius: accuracy, color: "#3a9bff", weight: 1, fillColor: "#3a9bff", fillOpacity: 0.1
+            }).addTo(map);
+          }
+          fabLocate.classList.add("active");
+          fabLocate.textContent = "📍";
+          fabLocate.disabled = false;
+          toast("已定位");
+        },
+        (err) => {
+          fabLocate.textContent = "📍";
+          fabLocate.disabled = false;
+          toast("取位置失敗：" + (err.message || err.code));
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    });
+
+    fabWalking.addEventListener("click", () => {
+      haptic(15);
+      const toggle = $("walkingToggle");
+      if (!toggle) return;
+      // Toggle the state
+      const willEnable = !state.walking.enabled;
+      toggle.checked = willEnable;
+      toggle.dispatchEvent(new Event("change"));
+      fabWalking.classList.toggle("active", willEnable);
+      if (willEnable && state.walking.anchors.length === 0) {
+        // Auto-add geo anchor for one-tap convenience
+        if (typeof window.__addAnchor === "function") {
+          window.__addAnchor("geo");
+        } else {
+          // fallback: try clicking the "+位置" button
+          const btn = $("addAnchorGeo");
+          if (btn) btn.click();
+        }
+        toast("步行圈已開、攞緊你位置");
+      } else if (!willEnable) {
+        toast("步行圈已關");
+      } else {
+        toast("步行圈已開");
+      }
+    });
+  }
+
+  function toast(msg, ms = 1800) {
+    let el = document.querySelector(".toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "toast";
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.classList.remove("show"), ms);
   }
 
   // ---- Bottom sheet: 3-snap (peek / half / full) ----

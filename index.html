@@ -403,6 +403,37 @@ body {
 /* Hide sheet handle on desktop */
 .sheet-handle { display: none; }
 
+/* ---- G1: Map FAB (mobile only) ---- */
+.map-fab-stack {
+  display: none;
+}
+@media (max-width: 720px) {
+  .map-fab-stack {
+    display: flex; flex-direction: column; gap: 10px;
+    position: fixed;
+    right: calc(14px + var(--sar, 0px));
+    bottom: calc(110px + var(--sab, 0px)); /* above peek-sheet */
+    z-index: 1100;
+  }
+  .map-fab {
+    width: 48px; height: 48px; border-radius: 24px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.96);
+    color: var(--ink);
+    font-size: 20px; line-height: 1;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .map-fab.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .map-fab:active { transform: scale(0.92); }
+}
+
 /* ===================================================================
    Batch F: Mobile optimization
    =================================================================== */
@@ -481,7 +512,7 @@ body {
   }
   .filters { padding: 8px 14px; gap: 10px; }
 
-  /* ---- F2-6: horizontal scrolling filter chip row ---- */
+  /* ---- F2-6 + G1-1: horizontal scrolling filter chip row, fixed widths ---- */
   .filter-row {
     display: flex;
     flex-wrap: nowrap;
@@ -493,13 +524,28 @@ body {
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x proximity;
+    /* G1-1: hint there's more by showing a fade on right edge */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
   }
   .filter-row::-webkit-scrollbar { display: none; }
-  .filter-row > * {
+  .filter-row > select,
+  .filter-row > input,
+  .filter-row > button {
     flex: 0 0 auto;
-    min-width: 130px;
-    width: auto;
+    /* G1-1: shrink — was full-width forcing user to swipe blind */
+    width: 150px;
+    min-width: 0;
+    max-width: 60vw;
     scroll-snap-align: start;
+    /* G1-2: explicit stacking — prevents native picker breakage during sheet transform */
+    position: relative;
+    z-index: 1;
+  }
+  /* full-width single fields (search, area select) */
+  .filters > select,
+  .filters > input {
+    width: 100%;
   }
 
   /* Buttons ≥ 44px tap target */
@@ -733,6 +779,12 @@ body {
   </aside>
 
   <div id="map"></div>
+
+  <!-- G1: Mobile-only floating action buttons -->
+  <div class="map-fab-stack" id="mapFabStack">
+    <button class="map-fab" id="fabLocate" title="我而家嘅位置" aria-label="我嘅位置">📍</button>
+    <button class="map-fab" id="fabWalking" title="步行圈 toggle" aria-label="步行圈">🚶</button>
+  </div>
 </div>
 
 <!-- Detail panel -->
