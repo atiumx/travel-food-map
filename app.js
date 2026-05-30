@@ -1157,13 +1157,19 @@
       const emoji = CATEGORY_EMOJI[p.category] || DEFAULT_EMOJI;
       const bm = getBookmark(p.id);
       const bmClass = bm ? ` bookmark-${bm}` : "";
+      // H2: outer wrapper class for favorite glow/size
+      const wrapClass = bm === "favorite" ? " bookmark-favorite-wrap" : "";
+      // H2: corner status badge (⭐ / ✅ / ❤)
+      const statusBadge = bm
+        ? `<span class="status-badge">${BOOKMARK_ICON[bm]}</span>`
+        : "";
       // E2: day badge (small digit bottom-right)
       const dayBadge = (p.day_tag != null)
         ? `<span class="day-badge">${p.day_tag}</span>`
         : "";
       const icon = L.divIcon({
-        className: "emoji-marker",
-        html: `<div class="emoji-marker-inner${bmClass}"><span>${emoji}</span>${dayBadge}</div>`,
+        className: "emoji-marker" + wrapClass,
+        html: `<div class="emoji-marker-inner${bmClass}"><span>${emoji}</span>${statusBadge}${dayBadge}</div>`,
         iconSize: [32, 32],
         iconAnchor: [16, 32],
         popupAnchor: [0, -32],

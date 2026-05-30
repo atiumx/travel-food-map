@@ -182,9 +182,53 @@ body {
   z-index: 1;
   pointer-events: none;
 }
-.emoji-marker-inner.bookmark-favorite { border-color: #c87f0a; }
-.emoji-marker-inner.bookmark-wishlist { border-color: #2c6fb8; }
-.emoji-marker-inner.bookmark-been { border-color: #3a8a3a; opacity: 0.6; }
+/* H2: Marker hierarchy — 4 levels with distinct background, size, badge */
+/* ⭐ wishlist: blue tinted, normal size */
+.emoji-marker-inner.bookmark-wishlist {
+  border-color: #2c6fb8;
+  background: #e8f1fb;
+  border-width: 2.5px;
+}
+/* ✅ been: green tinted, dimmed (visited—less attention) */
+.emoji-marker-inner.bookmark-been {
+  border-color: #3a8a3a;
+  background: #e8f5e9;
+  opacity: 0.75;
+  border-width: 2px;
+}
+/* ❤ favorite: gold ring + glow, slightly larger */
+.emoji-marker.bookmark-favorite-wrap .emoji-marker-inner.bookmark-favorite {
+  border-color: #d4a017;
+  background: #fff8e1;
+  border-width: 3px;
+  transform: rotate(-45deg) scale(1.12);
+  box-shadow: 0 0 8px rgba(212,160,23,0.55), 0 2px 4px rgba(0,0,0,0.2);
+}
+.emoji-marker-inner.bookmark-favorite {
+  border-color: #d4a017;
+  background: #fff8e1;
+  border-width: 3px;
+  box-shadow: 0 0 8px rgba(212,160,23,0.55), 0 2px 4px rgba(0,0,0,0.2);
+}
+/* H2: corner status badge (top-right, sits above day-badge bottom-right) */
+.status-badge {
+  position: absolute;
+  right: -4px; top: -4px;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px;
+  background: #fff;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  z-index: 2;
+  pointer-events: none;
+  min-width: 14px;
+  min-height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 /* G3c: selected marker pulse + bounce */
 @keyframes markerBounce {
   0%   { transform: rotate(-45deg) scale(1); }
