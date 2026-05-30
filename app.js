@@ -135,6 +135,43 @@
     applyFilters();
     // 背景 load 站點，唔阻主流程
     loadStations().catch(err => console.warn("loadStations failed", err));
+    // PWA: register service worker
+    registerServiceWorker().catch(err => console.warn("SW reg failed", err));
+    setupOnlineStatus();
+  }
+
+  // -----------------------------------------------------------
+  // PWA / offline
+  // -----------------------------------------------------------
+  async function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+    try {
+      const reg = await navigator.serviceWorker.register("sw.js");
+      // Listen for updates: when a new worker installs, show a toast
+      reg.addEventListener("updatefound", () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener("statechange", () => {
+          if (nw.state === "installed" && navigator.serviceWorker.controller) {
+            showToast("有新版本，刷新以更新");
+          }
+        });
+      });
+    } catch (e) {
+      console.warn("sw register error", e);
+    }
+  }
+
+  function setupOnlineStatus() {
+    const el = document.createElement("div");
+    el.id = "offlineBadge";
+    el.style.cssText = "position:fixed;top:8px;right:8px;background:#d84315;color:#fff;padding:4px 8px;border-radius:4px;font-size:11px;z-index:2500;display:none;pointer-events:none;";
+    el.textContent = "離線模式";
+    document.body.appendChild(el);
+    const update = () => { el.style.display = navigator.onLine ? "none" : "block"; };
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    update();
   }
 
   // -----------------------------------------------------------
