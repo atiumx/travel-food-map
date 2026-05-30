@@ -607,9 +607,10 @@
   function renderListSkeleton(n = 8) {
     const listEl = document.getElementById("placeList");
     if (!listEl) return;
+    listEl.setAttribute("aria-busy", "true");
     const rows = [];
     for (let i = 0; i < n; i++) {
-      rows.push('<div class="skeleton-row"><div class="skeleton skeleton-line mid"></div><div class="skeleton skeleton-line short"></div></div>');
+      rows.push('<div class="skeleton-row" aria-hidden="true"><div class="skeleton skeleton-line mid"></div><div class="skeleton skeleton-line short"></div></div>');
     }
     listEl.innerHTML = rows.join("");
   }
@@ -1716,6 +1717,7 @@
     _listRenderToken++;
     if (_listObserver) { _listObserver.disconnect(); _listObserver = null; }
 
+    if (placeListEl) placeListEl.setAttribute("aria-busy", "false");
     if (state.filtered.length === 0) {
       placeListEl.innerHTML = renderEmptyState();
       return;

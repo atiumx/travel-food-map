@@ -128,6 +128,37 @@
 .skeleton-line.short { width: 40%; }
 .skeleton-line.mid   { width: 65%; }
 .skeleton-line.long  { width: 85%; }
+
+/* K3: a11y focus ring (visible only for keyboard navigation) */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+button:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, [role="button"]:focus-visible, a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Suppress default focus rings only when :focus-visible is supported */
+@supports selector(:focus-visible) {
+  button:focus:not(:focus-visible), select:focus:not(:focus-visible), input:focus:not(:focus-visible), a:focus:not(:focus-visible) { outline: none; }
+}
+
+/* K3: respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* K3: animation polish - smoother hover/press */
+.place-row { transition: background 0.18s cubic-bezier(0.2, 0, 0, 1), transform 0.12s cubic-bezier(0.2, 0, 0, 1); }
+.place-row:active { transform: scale(0.995); }
+button:not(:disabled):active { transform: scale(0.97); transition: transform 0.08s ease; }
+
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body {
@@ -961,7 +992,7 @@ body {
 <body>
 
 <div class="app">
-  <aside class="sidebar" id="sidebar">
+  <aside class="sidebar" id="sidebar" role="complementary" aria-label="地點清單與篩選">
     <div class="sheet-handle" id="sheetHandle" aria-label="拖拉調整面板高度"></div>
     <header>
       <h1 data-i18n="app.title">旅行美食地圖</h1>
@@ -1096,7 +1127,7 @@ body {
       <div id="budgetBody" style="margin-top:6px;"></div>
     </details>
 
-    <div class="list" id="placeList">
+    <div class="list" id="placeList" role="list" aria-live="polite" aria-busy="false">
       <div class="list-empty">載入中⋯</div>
     </div>
 
@@ -1106,7 +1137,7 @@ body {
     </div>
   </aside>
 
-  <div id="map"></div>
+  <div id="map" role="application" aria-label="互動地圖"></div>
 
   <!-- G1: Mobile-only floating action buttons -->
   <div class="map-fab-stack" id="mapFabStack">
@@ -1119,7 +1150,7 @@ body {
 <!-- Detail panel -->
 <aside class="detail" id="detailPanel">
   <div class="detail-handle" id="detailHandle" aria-hidden="true"></div>
-  <button class="close-btn" id="detailClose">×</button>
+  <button class="close-btn" id="detailClose" aria-label="關閉">×</button>
   <div class="detail-body" id="detailBody">
   <!-- I1: hero photo (real img if hero_photo_url, else CSS gradient + big emoji) -->
   <div id="detailHero" class="detail-hero" aria-hidden="true"></div>
