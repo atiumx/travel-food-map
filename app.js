@@ -333,6 +333,34 @@
     $("rmCancel").addEventListener("click", () => closeModal("reviewModal"));
     $("rmConfirm").addEventListener("click", handleAddReview);
 
+    // Photo upload listeners
+    $("placePhotoBtn").addEventListener("click", () => $("placePhotoInput").click());
+    $("placePhotoInput").addEventListener("change", async e => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = "";
+      if (f) await handlePlacePhotoUpload(f);
+    });
+    $("rmPhotoInput").addEventListener("change", async e => {
+      const f = e.target.files && e.target.files[0];
+      const statusEl = $("rmPhotoStatus");
+      const previewEl = $("rmPhotoPreview");
+      state.pendingReviewPhoto = null;
+      previewEl.innerHTML = "";
+      if (!f) { statusEl.textContent = ""; return; }
+      statusEl.textContent = "處理中…";
+      const blob = await resizeImage(f);
+      if (!blob) { statusEl.textContent = "格式不支援"; return; }
+      if (blob.size > 2 * 1024 * 1024) {
+        statusEl.textContent = `太大 ${(blob.size/1024/1024).toFixed(2)}MB`;
+        return;
+      }
+      state.pendingReviewPhoto = blob;
+      statusEl.textContent = `已縮小 → ${(blob.size/1024).toFixed(0)}KB`;
+      const url = URL.createObjectURL(blob);
+      previewEl.innerHTML = `<img src="${url}" style="max-width:100%;max-height:150px;border-radius:4px;" />`;
+    });
+    $("photoLightbox").addEventListener("click", () => $("photoLightbox").classList.remove("open"));
+
     // Suggestion flow
     $("addSuggestionBtn").addEventListener("click", () => {
       if (state.role === "guest" || !state.selectedPlaceId) return;
@@ -1009,8 +1037,9 @@
     if (p.lat && p.lng) map.panTo([p.lat, p.lng]);
     renderList(); // refresh active state
 
-    // suggestions (parallel with reviews)
+    // suggestions + photos (parallel with reviews)
     loadAndRenderSuggestions(placeId).catch(() => {});
+    loadAndRenderPlacePhotos(placeId).catch(() => {});
 
     // Load reviews
     const { data, error } = await sb
@@ -1022,17 +1051,37 @@
     if (error) { listEl.innerHTML = '<div class="list-empty">載入評論失敗</div>'; return; }
     if (!data || data.length === 0) {
       listEl.innerHTML = '<div style="color:var(--muted);font-size:12px;">未有評論</div>';
-    } else {
-      listEl.innerHTML = data.map(r => `
+      return;
+    }
+    // fetch photos for these review ids
+    const reviewIds = data.map(r => r.id);
+    const photoMap = new Map();
+    if (reviewIds.length) {
+      const { data: pdata } = await sb
+        .from("review_photos")
+        .select("review_id, storage_path")
+        .in("review_id", reviewIds);
+      if (pdata) {
+        for (const p of pdata) photoMap.set(p.review_id, p.storage_path);
+      }
+    }
+    listEl.innerHTML = data.map(r => {
+      const sp = photoMap.get(r.id);
+      const photoHtml = sp ? `<img class="review-photo" src="${escapeHtml(photoUrl(sp))}" loading="lazy" data-url="${escapeHtml(photoUrl(sp))}" />` : "";
+      return `
         <div class="review">
           <div class="head">
             <span>${escapeHtml(r.display_name)}${r.rating != null ? ` · ★${r.rating}` : ""}</span>
             <span>${r.visit_date || r.created_at.substring(0,10)}</span>
           </div>
           <div>${escapeHtml(r.comment)}</div>
+          ${photoHtml}
         </div>
-      `).join("");
-    }
+      `;
+    }).join("");
+    listEl.querySelectorAll(".review-photo").forEach(img => {
+      img.addEventListener("click", () => openLightbox(img.dataset.url));
+    });
   }
 
   // -----------------------------------------------------------
@@ -1077,6 +1126,7 @@
     addPlaceBtn.disabled = !canWrite;
     $("addReviewBtn").disabled = !canWrite;
     $("addSuggestionBtn").disabled = !canWrite;
+    $("placePhotoBtn").disabled = !canWrite;
     inviteBtn.textContent = canWrite ? "切換身份" : "輸入邀請碼";
   }
 
@@ -1153,8 +1203,40 @@
     });
     if (error) { errEl.textContent = "提交失敗：" + error.message; return; }
 
+    // If photo was prepared, upload it via add_review_photo (need review id from add_review return)
+    // add_review RPC returns void, so we look up the latest review we just created
+    if (state.pendingReviewPhoto) {
+      try {
+        const { data: latest, error: lerr } = await sb
+          .from("reviews")
+          .select("id")
+          .eq("place_id", state.selectedPlaceId)
+          .eq("display_name", state.displayName)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        if (lerr) throw lerr;
+        if (latest && latest.length) {
+          const reviewId = latest[0].id;
+          const fname = genPhotoFilename();
+          const storagePath = `reviews/${reviewId}/${fname}`;
+          await uploadBlobToStorage(state.pendingReviewPhoto, storagePath);
+          const { error: perr } = await sb.rpc("add_review_photo", {
+            p_invite_code: state.inviteCode,
+            p_review_id: reviewId,
+            p_storage_path: storagePath,
+            p_display_name: state.displayName,
+          });
+          if (perr) throw perr;
+        }
+      } catch (e) {
+        showToast("照片上傳失敗：" + (e.message || e));
+      }
+      state.pendingReviewPhoto = null;
+    }
+
     closeModal("reviewModal");
     $("rmRating").value = ""; $("rmComment").value = ""; $("rmVisitDate").value = "";
+    $("rmPhotoInput").value = ""; $("rmPhotoStatus").textContent = ""; $("rmPhotoPreview").innerHTML = "";
     await openPlaceDetail(state.selectedPlaceId);
   }
 
@@ -1279,6 +1361,131 @@
     }
     showToast(status === "approved" ? "已通過" : "已拒絕");
     await loadAndRenderSuggestions(state.selectedPlaceId);
+  }
+
+  // -----------------------------------------------------------
+  // Photos
+  // -----------------------------------------------------------
+  const PHOTO_BUCKET = "food-map-photos";
+  const PHOTO_PUBLIC_BASE = `${cfg.SUPABASE_URL}/storage/v1/object/public/${PHOTO_BUCKET}/`;
+  state.pendingReviewPhoto = null; // {blob, contentType}
+
+  // Resize image via canvas. maxDim 1600, JPEG quality 0.8. Returns Promise<Blob|null>.
+  async function resizeImage(file, maxDim = 1600, quality = 0.8) {
+    if (!file || !file.type || !file.type.startsWith("image/")) return null;
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = URL.createObjectURL(file);
+    });
+    const w0 = img.naturalWidth, h0 = img.naturalHeight;
+    const scale = Math.min(1, maxDim / Math.max(w0, h0));
+    const w = Math.round(w0 * scale), h = Math.round(h0 * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(img.src);
+    return await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
+  }
+
+  function photoUrl(storagePath) {
+    return PHOTO_PUBLIC_BASE + storagePath;
+  }
+
+  async function uploadBlobToStorage(blob, storagePath) {
+    const { error } = await sb.storage.from(PHOTO_BUCKET).upload(storagePath, blob, {
+      contentType: "image/jpeg",
+      upsert: false,
+    });
+    if (error) throw error;
+    return storagePath;
+  }
+
+  function genPhotoFilename() {
+    const ts = Date.now();
+    const rand = Math.random().toString(36).slice(2, 8);
+    return `${ts}-${rand}.jpg`;
+  }
+
+  async function handlePlacePhotoUpload(file) {
+    if (state.role === "guest") { showToast("請先輸入邀請碼"); return; }
+    if (!state.selectedPlaceId) return;
+    const placeId = state.selectedPlaceId;
+    const statusEl = $("placePhotoStatus");
+    statusEl.textContent = "處理中…";
+    try {
+      const blob = await resizeImage(file);
+      if (!blob) { statusEl.textContent = "格式不支援"; return; }
+      if (blob.size > 2 * 1024 * 1024) {
+        statusEl.textContent = `圖片太大 (${(blob.size/1024/1024).toFixed(2)}MB > 2MB)`;
+        return;
+      }
+      statusEl.textContent = `上傳中… (${(blob.size/1024).toFixed(0)}KB)`;
+      const fname = genPhotoFilename();
+      const storagePath = `places/${placeId}/${fname}`;
+      await uploadBlobToStorage(blob, storagePath);
+      const { error } = await sb.rpc("add_place_photo", {
+        p_invite_code: state.inviteCode,
+        p_place_id: placeId,
+        p_storage_path: storagePath,
+        p_display_name: state.displayName,
+      });
+      if (error) throw new Error(error.message || error);
+      statusEl.textContent = "已加入";
+      setTimeout(() => statusEl.textContent = "", 2000);
+      await loadAndRenderPlacePhotos(placeId);
+    } catch (e) {
+      statusEl.textContent = "上傳失敗：" + (e.message || e);
+    }
+  }
+
+  async function loadAndRenderPlacePhotos(placeId) {
+    const galleryEl = $("detailGallery");
+    galleryEl.innerHTML = '<div class="gallery-empty">載入中…</div>';
+    const { data, error } = await sb
+      .from("place_photos")
+      .select("id, storage_path, uploaded_by_name, created_at")
+      .eq("place_id", placeId)
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true });
+    if (error) { galleryEl.innerHTML = '<div class="gallery-empty">載入失敗</div>'; return; }
+    if (!data || data.length === 0) {
+      galleryEl.innerHTML = '<div class="gallery-empty">未有照片</div>';
+      return;
+    }
+    galleryEl.innerHTML = data.map(p => {
+      const url = photoUrl(p.storage_path);
+      const ownerDel = state.role === "owner" ? `<button class="photo-del" data-photo-id="${p.id}" title="刪除">×</button>` : "";
+      return `<div class="photo" data-url="${escapeHtml(url)}"><img src="${escapeHtml(url)}" loading="lazy" /><div class="photo-meta">${escapeHtml(p.uploaded_by_name||"")}</div>${ownerDel}</div>`;
+    }).join("");
+    galleryEl.querySelectorAll(".photo").forEach(el => {
+      el.addEventListener("click", e => {
+        if (e.target.classList.contains("photo-del")) return;
+        openLightbox(el.dataset.url);
+      });
+    });
+    galleryEl.querySelectorAll(".photo-del").forEach(btn => {
+      btn.addEventListener("click", async e => {
+        e.stopPropagation();
+        if (!confirm("刪除呢張相？")) return;
+        const { error } = await sb.rpc("delete_photo", {
+          p_invite_code: state.inviteCode,
+          p_display_name: state.displayName,
+          p_photo_id: btn.dataset.photoId,
+          p_kind: "place",
+        });
+        if (error) { showToast("刪除失敗：" + error.message); return; }
+        showToast("已刪除");
+        await loadAndRenderPlacePhotos(placeId);
+      });
+    });
+  }
+
+  function openLightbox(url) {
+    $("photoLightboxImg").src = url;
+    $("photoLightbox").classList.add("open");
   }
 
   // -----------------------------------------------------------

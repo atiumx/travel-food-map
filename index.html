@@ -191,6 +191,35 @@ body {
 .station-icon.kobe-subway{ border-color: #6c4a96; }
 .station-tooltip { font-size: 11px; }
 
+/* Gallery */
+.gallery-section { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+.gallery-section h3 { font-size: 13px; margin: 0 0 6px; color: var(--muted); }
+.gallery-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.gallery-grid .photo {
+  position: relative; aspect-ratio: 1/1; overflow: hidden; border-radius: 4px;
+  background: var(--bg-2); cursor: pointer;
+}
+.gallery-grid .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gallery-grid .photo .photo-meta {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+  color: #fff; font-size: 10px; padding: 4px 6px 2px;
+}
+.gallery-grid .photo .photo-del {
+  position: absolute; top: 2px; right: 2px;
+  background: rgba(0,0,0,0.6); color: #fff; border: none; border-radius: 50%;
+  width: 20px; height: 20px; font-size: 12px; line-height: 1; cursor: pointer; display: none;
+}
+.gallery-grid .photo:hover .photo-del { display: block; }
+.gallery-empty { font-size: 12px; color: var(--muted); grid-column: 1/-1; }
+.review .review-photo { margin-top: 6px; max-width: 100%; max-height: 200px; border-radius: 4px; cursor: pointer; }
+.photo-lightbox {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none;
+  align-items: center; justify-content: center; z-index: 3000; cursor: pointer;
+}
+.photo-lightbox.open { display: flex; }
+.photo-lightbox img { max-width: 95vw; max-height: 95vh; object-fit: contain; }
+
 /* Suggestions */
 .suggestions { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
 .suggestions h3 { font-size: 13px; margin: 0 0 6px; color: var(--muted); display:flex; align-items:center; gap:6px; }
@@ -439,6 +468,18 @@ body {
   <div class="links" id="detailLinks"></div>
   <div id="detailNote" style="margin-top:6px;font-size:13px;color:var(--text);"></div>
 
+  <div class="gallery-section">
+    <h3 style="display:flex;align-items:center;justify-content:space-between;">
+      照片
+      <span style="display:flex;gap:6px;">
+        <input type="file" id="placePhotoInput" accept="image/jpeg,image/png,image/webp" style="display:none;" />
+        <button class="btn" id="placePhotoBtn" style="font-size:12px;padding:4px 8px;" disabled>📷 加照片</button>
+      </span>
+    </h3>
+    <div id="detailGallery" class="gallery-grid"></div>
+    <div id="placePhotoStatus" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
+  </div>
+
   <div class="reviews">
     <h3>評論</h3>
     <div id="reviewList"></div>
@@ -565,6 +606,12 @@ body {
     </div>
     <label>評論 *</label>
     <textarea id="rmComment" maxlength="2000"></textarea>
+    <label style="display:flex;align-items:center;justify-content:space-between;">
+      <span>照片（選填，1 張）</span>
+      <span id="rmPhotoStatus" style="font-size:11px;color:var(--muted);"></span>
+    </label>
+    <input type="file" id="rmPhotoInput" accept="image/jpeg,image/png,image/webp" />
+    <div id="rmPhotoPreview" style="margin-top:6px;"></div>
     <div class="err" id="rmErr"></div>
     <div class="actions">
       <button class="btn" id="rmCancel">取消</button>
@@ -574,6 +621,8 @@ body {
 </div>
 
 <div id="toast" class="toast"></div>
+
+<div class="photo-lightbox" id="photoLightbox"><img id="photoLightboxImg" /></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
