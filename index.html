@@ -291,6 +291,30 @@ body {
 .detail-body { /* desktop: no special flex */ }
 .detail h2 { margin: 0 0 6px; font-size: 16px; }
 .detail .meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+/* I1: hero photo (real img or CSS gradient placeholder) */
+.detail-hero {
+  width: calc(100% + 32px); margin: -14px -16px 10px;
+  height: 160px; overflow: hidden; position: relative;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, #f0ece1, #e6dfc8);
+  display: flex; align-items: center; justify-content: center;
+}
+.detail-hero img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.detail-hero .hero-emoji {
+  font-size: 64px; line-height: 1; opacity: 0.55;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.detail-hero.cg-japanese     { background: linear-gradient(135deg, #f8e2e1, #f3c9c2); }
+.detail-hero.cg-asian        { background: linear-gradient(135deg, #fde7c8, #f4c98a); }
+.detail-hero.cg-western      { background: linear-gradient(135deg, #f0e2d0, #d9b98a); }
+.detail-hero.cg-cafe_dessert { background: linear-gradient(135deg, #f5e6d8, #e1bf95); }
+.detail-hero.cg-bar          { background: linear-gradient(135deg, #e9d9e8, #b69cc6); }
+.detail-hero.cg-fast         { background: linear-gradient(135deg, #fceac0, #f0c870); }
+.detail-hero.cg-attraction   { background: linear-gradient(135deg, #d8e8e0, #95c2a8); }
+.detail-hero.cg-lodging      { background: linear-gradient(135deg, #e0e0e8, #a4a8c0); }
+.detail-hero.cg-other        { background: linear-gradient(135deg, #ece9e0, #c8c2a8); }
 .detail .links { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .detail .links a {
   font-size: 12px; padding: 3px 8px; border-radius: 4px;
@@ -717,6 +741,12 @@ body {
     -webkit-overflow-scrolling: touch;
     padding-top: 2px;
   }
+  /* I1: mobile hero — flush to top of body, full bleed */
+  .detail-body .detail-hero {
+    width: calc(100% + 32px);
+    margin: -2px -16px 10px;
+    height: 140px;
+  }
   .detail .close-btn {
     min-height: var(--tap-min);
     min-width: var(--tap-min);
@@ -907,6 +937,8 @@ body {
   <div class="detail-handle" id="detailHandle" aria-hidden="true"></div>
   <button class="close-btn" id="detailClose">×</button>
   <div class="detail-body" id="detailBody">
+  <!-- I1: hero photo (real img if hero_photo_url, else CSS gradient + big emoji) -->
+  <div id="detailHero" class="detail-hero" aria-hidden="true"></div>
   <h2 id="detailName"></h2>
   <div class="meta" id="detailMeta"></div>
   <div id="detailOwnerDay" style="display:none;font-size:12px;margin:4px 0;color:var(--muted);">

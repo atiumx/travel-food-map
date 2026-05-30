@@ -1811,6 +1811,19 @@
 
     const emoji = CATEGORY_EMOJI[p.category] || DEFAULT_EMOJI;
     $("detailName").innerHTML = `${emoji} ${escapeHtml(p.name)}`;
+
+    // I1: hero photo (real img if hero_photo_url present, else CSS gradient + big emoji)
+    const heroEl = $("detailHero");
+    if (heroEl) {
+      const cgKey = p.cuisine_group || "other";
+      heroEl.className = `detail-hero cg-${cgKey}`;
+      if (p.hero_photo_url) {
+        const safeUrl = String(p.hero_photo_url).replace(/"/g, "&quot;");
+        heroEl.innerHTML = `<img src="${safeUrl}" alt="" loading="lazy" decoding="async" onerror="this.parentNode.classList.add('fallback');this.outerHTML='<span class=&quot;hero-emoji&quot;>${emoji}</span>';">`;
+      } else {
+        heroEl.innerHTML = `<span class="hero-emoji">${emoji}</span>`;
+      }
+    }
     const dayLabel = p.day_tag != null ? `Day ${p.day_tag}` : null;
     $("detailMeta").textContent = [
       p.category, p.region, p.price_level, dayLabel,
