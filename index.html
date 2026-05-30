@@ -165,6 +165,49 @@ body {
 .modal .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .modal .err { color: var(--accent); font-size: 12px; margin-top: 6px; min-height: 16px; }
 
+/* Walking radius panel */
+.walking-panel {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: #fbfaf6;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.walking-panel .row { display: flex; align-items: center; gap: 8px; }
+.walking-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; user-select: none; }
+.walking-toggle input { cursor: pointer; }
+.walking-body { display: none; flex-direction: column; gap: 8px; }
+.walking-body.open { display: flex; }
+.walking-body .label {
+  font-size: 11px; color: var(--muted); margin-bottom: 2px;
+}
+.anchor-row { display: flex; gap: 4px; }
+.anchor-row .btn-sm {
+  flex: 1; padding: 5px 4px; font-size: 11px;
+  border: 1px solid var(--border); border-radius: 5px;
+  background: #fff; color: var(--text); cursor: pointer; text-align: center;
+}
+.anchor-row .btn-sm.active {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+.anchor-row .btn-sm:hover:not(.active) { background: #faf8f3; }
+.chip-row { display: flex; gap: 4px; }
+.chip {
+  flex: 1; padding: 6px 4px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--border); border-radius: 5px;
+  background: #fff; color: var(--text); cursor: pointer; text-align: center;
+}
+.chip.active {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+.chip:hover:not(.active) { background: #faf8f3; }
+.walking-hint {
+  font-size: 10px; color: var(--muted); line-height: 1.4;
+}
+.walking-status {
+  font-size: 11px; color: var(--muted);
+}
+.walking-status.error { color: var(--accent); }
+
 @media (max-width: 720px) {
   .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .sidebar { max-height: 45vh; }
@@ -193,6 +236,33 @@ body {
           <option value="¥¥¥">¥¥¥</option>
           <option value="¥¥¥¥">¥¥¥¥</option>
         </select>
+      </div>
+    </div>
+
+    <div class="walking-panel">
+      <label class="walking-toggle">
+        <input type="checkbox" id="walkingToggle" />
+        <span>步行圈篩選</span>
+      </label>
+      <div class="walking-body" id="walkingBody">
+        <div>
+          <div class="label">起點</div>
+          <div class="anchor-row">
+            <button class="btn-sm active" data-anchor="map" id="anchorMap">地圖中心</button>
+            <button class="btn-sm" data-anchor="geo" id="anchorGeo">📍 我的位置</button>
+            <button class="btn-sm" data-anchor="place" id="anchorPlace">從地點</button>
+          </div>
+        </div>
+        <div>
+          <div class="label">時間（分鐘）</div>
+          <div class="chip-row">
+            <button class="chip active" data-min="5">5</button>
+            <button class="chip" data-min="10">10</button>
+            <button class="chip" data-min="15">15</button>
+          </div>
+        </div>
+        <div class="walking-status" id="walkingStatus">起點：地圖中心 · 5 分鐘 ≈ 280m</div>
+        <div class="walking-hint">直線距離估算（速度 56 m/min，含 0.7 路程保險因子）。實際路程可能更長。</div>
       </div>
     </div>
 
