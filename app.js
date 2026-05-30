@@ -2852,10 +2852,14 @@
       }
     }
     const dayLabel = p.day_tag != null ? `Day ${p.day_tag}` : null;
+    // Show — for missing ratings (graceful fallback) when synced but no rating, hide when never synced
+    const gRating = p.google_rating != null
+      ? `Google ${p.google_rating}`
+      : (p.google_synced_at ? "Google —" : null);
+    const tRating = p.tabelog_rating ? `Tabelog ${p.tabelog_rating}` : null;
     $("detailMeta").textContent = [
       p.category, p.region, p.price_level, dayLabel,
-      p.google_rating ? `Google ${p.google_rating}` : null,
-      p.tabelog_rating ? `Tabelog ${p.tabelog_rating}` : null
+      gRating, tRating
     ].filter(Boolean).join(" · ");
 
     // E2: owner-only inline day-tag editor
