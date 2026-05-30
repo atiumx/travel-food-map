@@ -137,7 +137,7 @@
     { key: "michelin",   label: "🌟 米其林",         keywords: ["米其林"] },
     { key: "bib",        label: "🍽️ 必比登",         keywords: ["必比登"] },
     { key: "asia50",     label: "🏆 Asia 50 Best",   keywords: ["Asia 50 Best", "asia 50", "亞洲50"] },
-    { key: "tabelog",    label: "🇯🇵 Tabelog 百名店", keywords: ["Tabelog", "百名店"] },
+    { key: "tabelog",    label: "🇯🇵 百名店",          keywords: ["Tabelog", "百名店"] },
     { key: "oldshop",    label: "⏳ 老店",            keywords: ["老店", "老牌", "老舗", "古早味"] },
     { key: "verified",   label: "✓ 已驗證",           keywords: [], verifiedOnly: true },
   ];
@@ -2444,15 +2444,18 @@
   };
 
   async function loadStations() {
+    // SW caches static assets; do not pass cache:'force-cache' which can race
+    // with the SW install. Plain fetch + default caching is fine.
     try {
-      const res = await fetch("./data/stations.json", { cache: "force-cache" });
+      const res = await fetch("./data/stations.json");
       if (!res.ok) throw new Error("HTTP " + res.status);
       const data = await res.json();
       state.stations = data.stations || [];
       renderAnchorList(); // 重新 enable 車站 btn
       if (state.showStations) renderStationMarkers();
     } catch (err) {
-      console.warn("loadStations error:", err);
+      // Non-fatal: stations overlay simply becomes unavailable for this session.
+      console.warn("loadStations skipped:", err && err.message ? err.message : err);
       state.stations = [];
     }
   }
