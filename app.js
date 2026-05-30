@@ -198,6 +198,78 @@
   }
 
   // -----------------------------------------------------------
+  // I3: Day timeline strip
+  // -----------------------------------------------------------
+  // 根據 state.places 中出現過的 day_tag 動態生成 pill。
+  // Click pill = toggle state.dayFilter 到該 day。
+  // 與 #dayFilter <select> 雙向同步。
+  function renderDayStrip() {
+    const wrap = document.getElementById("dayStrip");
+    if (!wrap) return;
+    const counts = new Map();   // day -> count (only places.day_tag != null)
+    let unassigned = 0;
+    for (const p of state.places || []) {
+      if (p.day_tag == null) { unassigned++; continue; }
+      const d = parseInt(p.day_tag, 10);
+      if (isNaN(d)) continue;
+      counts.set(d, (counts.get(d) || 0) + 1);
+    }
+    // Hide strip entirely if no day_tag data at all
+    if (counts.size === 0) {
+      wrap.style.display = "none";
+      wrap.innerHTML = "";
+      return;
+    }
+    wrap.style.display = "";
+    const days = Array.from(counts.keys()).sort((a, b) => a - b);
+    wrap.innerHTML = "";
+
+    // "全部" pill (clears dayFilter)
+    const allBtn = makeDayPill("全部", null, (state.places || []).length, !state.dayFilter, () => {
+      setDayFilter("");
+    });
+    wrap.appendChild(allBtn);
+
+    for (const d of days) {
+      const active = state.dayFilter === String(d);
+      const btn = makeDayPill(`Day ${d}`, d, counts.get(d), active, () => {
+        // Toggle behavior: click active pill → clear
+        setDayFilter(active ? "" : String(d));
+      });
+      wrap.appendChild(btn);
+    }
+    if (unassigned > 0) {
+      const active = state.dayFilter === "none";
+      const btn = makeDayPill("未分配", "none", unassigned, active, () => {
+        setDayFilter(active ? "" : "none");
+      });
+      btn.classList.add("day-none");
+      wrap.appendChild(btn);
+    }
+  }
+
+  function makeDayPill(label, dayKey, count, active, onClick) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "day-pill";
+    if (active) btn.classList.add("active");
+    btn.dataset.day = dayKey == null ? "" : String(dayKey);
+    btn.innerHTML = `<span>${label}</span><span class="pill-count">${count}</span>`;
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
+    btn.addEventListener("click", onClick);
+    return btn;
+  }
+
+  function setDayFilter(val) {
+    state.dayFilter = val;
+    const sel = document.getElementById("dayFilter");
+    if (sel) sel.value = val;
+    applyFilters();
+    // Re-render strip so active state updates
+    renderDayStrip();
+  }
+
+  // -----------------------------------------------------------
   // DOM refs
   // -----------------------------------------------------------
   const $ = (id) => document.getElementById(id);
@@ -804,6 +876,7 @@
     $("dayFilter").addEventListener("change", (e) => {
       state.dayFilter = e.target.value;
       applyFilters();
+      renderDayStrip();  // I3: keep pills in sync with dropdown
     });
     // I2: Facet tag chips
     bindFacetChips();
@@ -1037,7 +1110,7 @@
   async function loadPlacesForCurrentArea() {
     centerMapOnCurrentArea();
     const ta = state.tripAreas.find(t => t.slug === state.currentTripAreaSlug);
-    if (!ta) { state.places = []; applyFilters(); return; }
+    if (!ta) { state.places = []; renderDayStrip(); applyFilters(); return; }
 
     const { data, error } = await sb
       .from("places")
@@ -1048,6 +1121,8 @@
       .limit(2000);  // Perf-D: bump from Supabase default 1000 to support 400+/area
     if (error) { console.error(error); return; }
     state.places = data || [];
+    // I3: Refresh day strip on every area data load
+    renderDayStrip();
     applyFilters();
   }
 
@@ -1112,6 +1187,9 @@
         state.filtered = state.filtered.filter(p => p.day_tag === dn);
       }
     }
+    // I3: Day strip refresh on every filter pass (cheap; reads counts only)
+    // Note: counts on strip reflect entire state.places, NOT filtered — they
+    // show the trip's total day distribution as a navigation aid.
     // I2: Facet tags filter (OR semantics — match ANY selected facet)
     if (state.tagFacets && state.tagFacets.size > 0) {
       state.filtered = state.filtered.filter(p => {
