@@ -97,6 +97,7 @@
     openFilter: "",           // "" | "now" | "today" | "weekday-N"
     bookmarkFilter: "",       // "" | "wishlist" | "been" | "favorite" | "none"
     dayFilter: "",            // "" | "1"."7" | "none"
+    tagFacets: new Set(),     // I2: 多選 facet tag filter（OR 邏輯）
 
     // 步行圈（多 anchor）
     walking: {
@@ -119,6 +120,82 @@
   const MAX_ANCHORS = 5;
   let anchorIdCounter = 1;
   const nextAnchorId = () => `a${anchorIdCounter++}`;
+
+  // -----------------------------------------------------------
+  // I2: Facet tag definitions — quality signals
+  // -----------------------------------------------------------
+  // 每個 facet 對應 1 個 chip，配對邏輯由 matchFacet() 處理
+  // 用 keyword OR-match 喺 tags[] 入面，避免依賴單一 exact tag
+  const FACET_DEFS = [
+    { key: "michelin",   label: "🌟 米其林",         keywords: ["米其林"] },
+    { key: "bib",        label: "🍽️ 必比登",         keywords: ["必比登"] },
+    { key: "asia50",     label: "🏆 Asia 50 Best",   keywords: ["Asia 50 Best", "asia 50", "亞洲50"] },
+    { key: "tabelog",    label: "🇯🇵 Tabelog 百名店", keywords: ["Tabelog", "百名店"] },
+    { key: "oldshop",    label: "⏳ 老店",            keywords: ["老店", "老牌", "老舗", "古早味"] },
+    { key: "verified",   label: "✓ 已驗證",           keywords: [], verifiedOnly: true },
+  ];
+
+  function matchFacet(place, tags, facetKey) {
+    const def = FACET_DEFS.find(f => f.key === facetKey);
+    if (!def) return false;
+    if (def.verifiedOnly) return place.verified === true;
+    const lower = tags.map(t => String(t).toLowerCase());
+    for (const kw of def.keywords) {
+      const kl = kw.toLowerCase();
+      if (lower.some(t => t.includes(kl))) return true;
+    }
+    return false;
+  }
+
+  function bindFacetChips() {
+    const wrap = document.getElementById("facetChips");
+    if (!wrap) return;
+    wrap.innerHTML = "";
+    for (const def of FACET_DEFS) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "facet-chip";
+      btn.dataset.facet = def.key;
+      btn.textContent = def.label;
+      btn.setAttribute("aria-pressed", "false");
+      btn.addEventListener("click", () => {
+        if (state.tagFacets.has(def.key)) {
+          state.tagFacets.delete(def.key);
+          btn.classList.remove("active");
+          btn.setAttribute("aria-pressed", "false");
+        } else {
+          state.tagFacets.add(def.key);
+          btn.classList.add("active");
+          btn.setAttribute("aria-pressed", "true");
+        }
+        applyFilters();
+      });
+      wrap.appendChild(btn);
+    }
+    // Optional clear-all
+    const clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "facet-chip facet-clear";
+    clearBtn.textContent = "清除";
+    clearBtn.title = "清除所有 facet 篩選";
+    clearBtn.addEventListener("click", () => {
+      state.tagFacets.clear();
+      syncFacetChipsUI();
+      applyFilters();
+    });
+    wrap.appendChild(clearBtn);
+    syncFacetChipsUI();
+  }
+
+  function syncFacetChipsUI() {
+    const wrap = document.getElementById("facetChips");
+    if (!wrap) return;
+    wrap.querySelectorAll(".facet-chip[data-facet]").forEach(btn => {
+      const on = state.tagFacets.has(btn.dataset.facet);
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
 
   // -----------------------------------------------------------
   // DOM refs
@@ -606,6 +683,12 @@
     const open = params.get("open");   if (open) { $("openFilter").value = open; state.openFilter = open; }
     const bm = params.get("bm");       if (bm) { $("bookmarkFilter").value = bm; state.bookmarkFilter = bm; }
     const day = params.get("day");     if (day) { $("dayFilter").value = day; state.dayFilter = day; }
+    const facets = params.get("facets");
+    if (facets) {
+      state.tagFacets = new Set(facets.split(",").filter(Boolean));
+      // chip active state restored after DOM render
+      setTimeout(syncFacetChipsUI, 0);
+    }
     // 步行圈 state
     const walk = params.get("walk");
     if (walk) {
@@ -627,6 +710,9 @@
     if (state.openFilter)         params.set("open", state.openFilter);
     if (state.bookmarkFilter)     params.set("bm", state.bookmarkFilter);
     if (state.dayFilter)          params.set("day", state.dayFilter);
+    if (state.tagFacets && state.tagFacets.size > 0) {
+      params.set("facets", Array.from(state.tagFacets).join(","));
+    }
     if (state.walking.enabled)    params.set("walk", state.walking.minutes);
     const url = `${location.origin}${location.pathname}?${params.toString()}`;
     return url;
@@ -719,6 +805,8 @@
       state.dayFilter = e.target.value;
       applyFilters();
     });
+    // I2: Facet tag chips
+    bindFacetChips();
     $("sortBy").addEventListener("change", (e) => {
       state.sortBy = e.target.value;
       applyFilters();
@@ -1023,6 +1111,16 @@
         const dn = parseInt(state.dayFilter, 10);
         state.filtered = state.filtered.filter(p => p.day_tag === dn);
       }
+    }
+    // I2: Facet tags filter (OR semantics — match ANY selected facet)
+    if (state.tagFacets && state.tagFacets.size > 0) {
+      state.filtered = state.filtered.filter(p => {
+        const tags = p.tags || [];
+        for (const facet of state.tagFacets) {
+          if (matchFacet(p, tags, facet)) return true;
+        }
+        return false;
+      });
     }
 
     // Sorting
