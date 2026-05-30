@@ -1961,6 +1961,14 @@
     const km = (route.distance / 1000).toFixed(2);
     const mins = Math.round(route.duration / 60);
     const sourceTxt = source === "osrm" ? "OSRM 路網距離" : "直線估算（OSRM 不可用）";
+    // J3: build export deeplink (Google/Apple Maps multi-waypoint walking)
+    const exportUrl = buildRouteExportUrl(ordered);
+    const exportLabel = isIOS() ? "🗺️ Apple Maps 導航" : "🗺️ Google Maps 導航";
+    const exportNote = isIOS() ? '<div style="font-size:10px;color:var(--muted);margin-top:2px;">Apple Maps 只支援起/終點，中途點需手動加。</div>' : "";
+    const exportHtml = exportUrl
+      ? `<a class="btn-sm" href="${escapeHtml(exportUrl)}" target="_blank" rel="noopener" style="display:block;margin-top:6px;padding:6px 8px;font-size:11px;text-align:center;background:#1976d2;color:#fff;text-decoration:none;border-radius:4px;">${exportLabel}</a>${exportNote}`
+      : "";
+
     panel.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
         <b>規劃路線</b>
@@ -1970,6 +1978,7 @@
       <ol style="margin:0;padding-left:18px;">
         ${ordered.map(a => `<li style="margin:2px 0;"><span style="display:inline-block;width:10px;height:10px;background:${a.color};border-radius:50%;margin-right:4px;"></span>${a.label}</li>`).join("")}
       </ol>
+      ${exportHtml}
     `;
     $("hideRouteBtn").addEventListener("click", hideRoutePanel);
   }
@@ -2305,6 +2314,111 @@
   }
 
   // -----------------------------------------------------------
+  // J3: Maps deeplink helpers (Google Maps / Apple Maps / tel:)
+  // -----------------------------------------------------------
+  function isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+           (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  }
+  function gmapsOpen(p) {
+    // Open place card on Google Maps. Prefer existing google_url, else search by name+coord.
+    const direct = p.google_url || (p.links && p.links.maps);
+    if (direct) return direct;
+    if (p.lat != null && p.lng != null) {
+      const q = encodeURIComponent(`${p.name} ${p.lat},${p.lng}`);
+      return `https://www.google.com/maps/search/?api=1&query=${q}`;
+    }
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}`;
+  }
+  function gmapsDir(p, mode) {
+    // mode: "walking" | "transit" | "driving"
+    if (p.lat == null || p.lng == null) return null;
+    const dest = `${p.lat},${p.lng}`;
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}&travelmode=${mode}`;
+  }
+  function applemapsOpen(p) {
+    if (p.lat != null && p.lng != null) {
+      return `https://maps.apple.com/?q=${encodeURIComponent(p.name)}&ll=${p.lat},${p.lng}`;
+    }
+    return `https://maps.apple.com/?q=${encodeURIComponent(p.name)}`;
+  }
+  function applemapsDir(p, mode) {
+    // Apple Maps modes: w=walking, r=transit, d=driving
+    const m = mode === "transit" ? "r" : (mode === "walking" ? "w" : "d");
+    if (p.lat == null || p.lng == null) return null;
+    return `https://maps.apple.com/?daddr=${p.lat},${p.lng}&dirflg=${m}`;
+  }
+  function extractPhone(p) {
+    // Try links.phone first, then scan note for phone-looking pattern
+    const lk = p.links || {};
+    if (lk.phone) return String(lk.phone).trim();
+    if (p.phone) return String(p.phone).trim();
+    const haystack = `${p.note || ""} ${p.address || ""}`;
+    // Japanese / Taiwan / HK phone patterns: 7-15 digits with optional dashes/spaces/parens, optional +country
+    const m = haystack.match(/(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{2,4}\)?[\s-]?)?\d{3,4}[\s-]?\d{3,4}/);
+    if (m) {
+      const cleaned = m[0].replace(/[\s()-]/g, "");
+      // Must have at least 8 digits to be plausible
+      if (cleaned.replace(/\D/g, "").length >= 8) return m[0].trim();
+    }
+    return null;
+  }
+  function telLink(phoneRaw) {
+    if (!phoneRaw) return null;
+    // strip spaces/dashes/parens but keep leading +
+    const cleaned = phoneRaw.replace(/[\s()-]/g, "");
+    return `tel:${cleaned}`;
+  }
+  function renderPlaceDeeplinks(p) {
+    const wrap = document.getElementById("detailDeeplinks");
+    if (!wrap) return;
+    const useApple = isIOS();
+    const btns = [];
+    const mkBtn = (href, label, title) => {
+      if (!href) return;
+      const t = title ? ` title="${escapeHtml(title)}"` : "";
+      btns.push(`<a class="btn" href="${escapeHtml(href)}" target="_blank" rel="noopener" style="font-size:11px;padding:4px 8px;text-decoration:none;"${t}>${label}</a>`);
+    };
+    // Open in Maps
+    if (useApple) {
+      mkBtn(applemapsOpen(p), "🗺️ Apple Maps", "在 Apple Maps 開啟");
+    } else {
+      mkBtn(gmapsOpen(p), "🗺️ Google Maps", "在 Google Maps 開啟");
+    }
+    // Walking directions
+    if (p.lat != null && p.lng != null) {
+      mkBtn(useApple ? applemapsDir(p, "walking") : gmapsDir(p, "walking"), "🚶 步行", "步行導航");
+      mkBtn(useApple ? applemapsDir(p, "transit") : gmapsDir(p, "transit"), "🚆 交通", "公交路線");
+    }
+    // Phone (tel:)
+    const phone = extractPhone(p);
+    if (phone) {
+      const tel = telLink(phone);
+      btns.push(`<a class="btn" href="${escapeHtml(tel)}" style="font-size:11px;padding:4px 8px;text-decoration:none;" title="${escapeHtml("訂位 / 電話 " + phone)}">📞 ${escapeHtml(phone)}</a>`);
+    }
+    wrap.innerHTML = btns.join("");
+  }
+  // TSP route export: build a Google/Apple Maps multi-waypoint walking URL
+  function buildRouteExportUrl(points) {
+    // points: [{lat, lng, label?}, ...] in TSP order
+    if (!Array.isArray(points) || points.length < 2) return null;
+    if (isIOS()) {
+      // Apple Maps: only supports saddr + daddr (no multi-waypoint via web URL).
+      // Use first as start, last as end — user manually adds intermediate stops.
+      const s = points[0];
+      const d = points[points.length - 1];
+      return `https://maps.apple.com/?saddr=${s.lat},${s.lng}&daddr=${d.lat},${d.lng}&dirflg=w`;
+    }
+    // Google Maps: /maps/dir/?api=1&origin=...&destination=...&waypoints=A|B|C&travelmode=walking
+    const origin = `${points[0].lat},${points[0].lng}`;
+    const dest = `${points[points.length-1].lat},${points[points.length-1].lng}`;
+    const mid = points.slice(1, -1).map(pt => `${pt.lat},${pt.lng}`).join("|");
+    let url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(dest)}&travelmode=walking`;
+    if (mid) url += `&waypoints=${encodeURIComponent(mid)}`;
+    return url;
+  }
+
+  // -----------------------------------------------------------
   // Place detail + reviews
   // -----------------------------------------------------------
   function renderBookmarkButtons() {
@@ -2403,6 +2517,9 @@
     const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(p.name)}`;
     if (!gUrl) links.push(`<a href="${searchUrl}" target="_blank" rel="noopener">Maps 搜尋</a>`);
     $("detailLinks").innerHTML = links.join("");
+
+    // J3: Maps / transit / phone deeplinks
+    renderPlaceDeeplinks(p);
 
     renderBookmarkButtons();
 
