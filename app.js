@@ -141,12 +141,14 @@
     { key: "tabelog",    label: "🇯🇵 百名店",          keywords: ["Tabelog", "百名店"] },
     { key: "oldshop",    label: "⏳ 老店",            keywords: ["老店", "老牌", "老舗", "古早味"] },
     { key: "verified",   label: "✓ 已驗證",           keywords: [], verifiedOnly: true },
+    { key: "unverified", label: "⚠ 只睇未驗證",        keywords: [], unverifiedOnly: true },
   ];
 
   function matchFacet(place, tags, facetKey) {
     const def = FACET_DEFS.find(f => f.key === facetKey);
     if (!def) return false;
     if (def.verifiedOnly) return place.verified === true;
+    if (def.unverifiedOnly) return place.verified === false;
     const lower = tags.map(t => String(t).toLowerCase());
     for (const kw of def.keywords) {
       const kl = kw.toLowerCase();
@@ -1951,14 +1953,47 @@
     // Perf-C: unverified badge for lower-confidence entries
     const unverifiedBadge = (p.verified === false)
       ? '<span class="badge-unverified" title="未完全驗證坐標/資料">⚠</span>' : "";
+    // Owner-only quick verify button (shown inline on unverified items)
+    const quickVerifyBtn = (state.role === "owner" && p.verified === false)
+      ? '<button type="button" class="quick-verify-btn" title="標記為已驗證" aria-label="快速驗證">✓</button>' : "";
     div.innerHTML = `
-      <div class="name">${bmIcon}${escapeHtml(p.name)}${openBadge}${dayBadgeHtml}${unverifiedBadge}</div>
+      <div class="name">${bmIcon}${escapeHtml(p.name)}${openBadge}${dayBadgeHtml}${unverifiedBadge}${quickVerifyBtn}</div>
       <div class="meta">${escapeHtml(meta)}</div>
       ${tags ? `<div class="tags">${tags}</div>` : ""}
     `;
     div.addEventListener("click", () => openPlaceDetail(p.id));
     div.addEventListener("mouseenter", () => highlightMarker(p.id, true));
     div.addEventListener("mouseleave", () => highlightMarker(p.id, false));
+    // Owner-only quick-verify handler (stopPropagation so it doesn't open detail)
+    const qvBtn = div.querySelector(".quick-verify-btn");
+    if (qvBtn) {
+      qvBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const missing = [];
+        if (!p.opening_hours) missing.push("營業時間");
+        if (!p.address) missing.push("地址");
+        if (missing.length) {
+          if (!confirm(p.name + " 仍缺：" + missing.join("、") + "\n\n確定標記為已驗證？")) return;
+        }
+        qvBtn.disabled = true;
+        qvBtn.textContent = "⋯";
+        const { error } = await sb.rpc("update_place_verified", {
+          p_invite_code: state.inviteCode,
+          p_display_name: state.displayName,
+          p_place_id: p.id,
+          p_verified: true,
+        });
+        if (error) {
+          qvBtn.disabled = false;
+          qvBtn.textContent = "✓";
+          alert("更新失敗：" + error.message);
+          return;
+        }
+        p.verified = true;
+        // refresh facet chips (verified count may change) + re-render this card
+        applyFilters();
+      });
+    }
     return div;
   }
 
