@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>旅行美食地圖</title>
+
+<link rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin="" />
+<link rel="stylesheet"
+      href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet"
+      href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+<style>
+:root {
+  --bg: #f6f5f1;
+  --panel: #ffffff;
+  --border: #e2dfd6;
+  --text: #1f1d1a;
+  --muted: #6f6a60;
+  --accent: #b8412c;
+  --accent-soft: #f1d9d2;
+  --shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: -apple-system, "Hiragino Sans", "Noto Sans CJK TC", "PingFang TC", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  height: 100vh;
+}
+
+.sidebar {
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sidebar header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+.sidebar header h1 {
+  font-size: 16px; margin: 0; letter-spacing: 0.02em;
+}
+.role-badge {
+  font-size: 11px; padding: 2px 8px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent);
+}
+.role-badge.guest { background: #eceae3; color: var(--muted); }
+.role-badge.owner { background: #d6ead7; color: #2f6f3a; }
+
+.filters {
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.filters select, .filters input {
+  width: 100%;
+  padding: 7px 9px; font-size: 13px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: #fff; color: var(--text);
+}
+.filter-row { display: flex; gap: 6px; }
+.filter-row > * { flex: 1; }
+
+.list {
+  flex: 1; overflow-y: auto; padding: 4px 0;
+}
+.list-empty {
+  padding: 24px 16px; color: var(--muted); font-size: 13px; text-align: center;
+}
+.place-item {
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.place-item:hover { background: #faf8f3; }
+.place-item.active { background: var(--accent-soft); }
+.place-item .name { font-weight: 600; font-size: 14px; }
+.place-item .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.place-item .tags { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
+.tag {
+  font-size: 11px; padding: 1px 6px; border-radius: 4px;
+  background: #eceae3; color: var(--muted);
+}
+
+.footer-actions {
+  padding: 10px 16px; border-top: 1px solid var(--border);
+  display: flex; gap: 8px;
+}
+.btn {
+  flex: 1; padding: 8px 10px; font-size: 13px;
+  border: 1px solid var(--border); background: #fff; color: var(--text);
+  border-radius: 6px; cursor: pointer;
+}
+.btn:hover { background: #faf8f3; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: #9a3522; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+#map { height: 100%; width: 100%; }
+
+/* Detail panel */
+.detail {
+  position: absolute; right: 16px; top: 16px;
+  width: 340px; max-height: calc(100vh - 32px);
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: var(--shadow);
+  padding: 14px 16px; overflow-y: auto; z-index: 1000;
+  display: none;
+}
+.detail.open { display: block; }
+.detail h2 { margin: 0 0 6px; font-size: 16px; }
+.detail .meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.detail .links { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.detail .links a {
+  font-size: 12px; padding: 3px 8px; border-radius: 4px;
+  background: #eceae3; color: var(--text); text-decoration: none;
+}
+.detail .close-btn {
+  position: absolute; top: 8px; right: 10px;
+  background: none; border: none; font-size: 18px; cursor: pointer; color: var(--muted);
+}
+.reviews { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+.reviews h3 { font-size: 13px; margin: 0 0 6px; color: var(--muted); }
+.review {
+  padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 13px;
+}
+.review:last-child { border-bottom: none; }
+.review .head {
+  display: flex; justify-content: space-between; font-size: 12px; color: var(--muted);
+}
+
+/* Modal */
+.modal-bg {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 2000;
+  display: none; align-items: center; justify-content: center;
+}
+.modal-bg.open { display: flex; }
+.modal {
+  background: var(--panel); border-radius: 8px; padding: 20px;
+  width: 92%; max-width: 480px; max-height: 90vh; overflow-y: auto;
+}
+.modal h2 { margin-top: 0; font-size: 16px; }
+.modal label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 3px; }
+.modal input, .modal select, .modal textarea {
+  width: 100%; padding: 7px 9px; font-size: 13px;
+  border: 1px solid var(--border); border-radius: 6px; background: #fff;
+  font-family: inherit;
+}
+.modal textarea { min-height: 80px; resize: vertical; }
+.modal .row { display: flex; gap: 8px; }
+.modal .row > * { flex: 1; }
+.modal .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.modal .err { color: var(--accent); font-size: 12px; margin-top: 6px; min-height: 16px; }
+
+@media (max-width: 720px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .sidebar { max-height: 45vh; }
+  .detail { right: 8px; left: 8px; width: auto; top: 8px; max-height: 50vh; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <header>
+      <h1>旅行美食地圖</h1>
+      <span id="roleBadge" class="role-badge guest">訪客</span>
+    </header>
+
+    <div class="filters">
+      <select id="tripAreaSelect"></select>
+      <input id="searchInput" type="search" placeholder="搜尋名稱／標籤／備註" />
+      <div class="filter-row">
+        <select id="categoryFilter"><option value="">所有分類</option></select>
+        <select id="priceFilter">
+          <option value="">所有價位</option>
+          <option value="¥">¥</option>
+          <option value="¥¥">¥¥</option>
+          <option value="¥¥¥">¥¥¥</option>
+          <option value="¥¥¥¥">¥¥¥¥</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="list" id="placeList">
+      <div class="list-empty">載入中⋯</div>
+    </div>
+
+    <div class="footer-actions">
+      <button class="btn" id="inviteBtn">輸入邀請碼</button>
+      <button class="btn primary" id="addPlaceBtn" disabled>新增地點</button>
+    </div>
+  </aside>
+
+  <div id="map"></div>
+</div>
+
+<!-- Detail panel -->
+<aside class="detail" id="detailPanel">
+  <button class="close-btn" id="detailClose">×</button>
+  <h2 id="detailName"></h2>
+  <div class="meta" id="detailMeta"></div>
+  <div class="links" id="detailLinks"></div>
+  <div id="detailNote" style="margin-top:6px;font-size:13px;color:var(--text);"></div>
+
+  <div class="reviews">
+    <h3>評論</h3>
+    <div id="reviewList"></div>
+    <button class="btn primary" id="addReviewBtn" style="margin-top:10px;" disabled>新增評論</button>
+  </div>
+</aside>
+
+<!-- Invite modal -->
+<div class="modal-bg" id="inviteModal">
+  <div class="modal">
+    <h2>輸入邀請碼</h2>
+    <label>邀請碼</label>
+    <input id="inviteInput" type="text" autocomplete="off" />
+    <label>顯示名（你嘅暱稱）</label>
+    <input id="displayNameInput" type="text" maxlength="40" />
+    <div class="err" id="inviteErr"></div>
+    <div class="actions">
+      <button class="btn" id="inviteCancel">取消</button>
+      <button class="btn primary" id="inviteConfirm">確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add place modal -->
+<div class="modal-bg" id="placeModal">
+  <div class="modal">
+    <h2>新增地點</h2>
+    <label>名稱 *</label>
+    <input id="pmName" type="text" />
+    <div class="row">
+      <div>
+        <label>分類</label>
+        <select id="pmCategory"></select>
+      </div>
+      <div>
+        <label>價位</label>
+        <select id="pmPrice">
+          <option value="">—</option>
+          <option value="¥">¥</option>
+          <option value="¥¥">¥¥</option>
+          <option value="¥¥¥">¥¥¥</option>
+          <option value="¥¥¥¥">¥¥¥¥</option>
+        </select>
+      </div>
+    </div>
+    <label>地區（區名，如博多／天神）</label>
+    <input id="pmRegion" type="text" />
+    <div class="row">
+      <div>
+        <label>緯度 lat *</label>
+        <input id="pmLat" type="number" step="any" />
+      </div>
+      <div>
+        <label>經度 lng *</label>
+        <input id="pmLng" type="number" step="any" />
+      </div>
+    </div>
+    <label>標籤（用逗號分隔）</label>
+    <input id="pmTags" type="text" placeholder="例如：豚骨,辛口,深夜" />
+    <label>備註</label>
+    <textarea id="pmNote"></textarea>
+    <label>Google Maps 連結</label>
+    <input id="pmGoogleUrl" type="url" />
+    <label>Tabelog 連結</label>
+    <input id="pmTabelogUrl" type="url" />
+    <div class="err" id="pmErr"></div>
+    <div class="actions">
+      <button class="btn" id="pmCancel">取消</button>
+      <button class="btn primary" id="pmConfirm">提交</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add review modal -->
+<div class="modal-bg" id="reviewModal">
+  <div class="modal">
+    <h2>新增評論</h2>
+    <div id="rmPlaceName" style="font-size:13px;color:var(--muted);margin-bottom:8px;"></div>
+    <div class="row">
+      <div>
+        <label>評分（0–5）</label>
+        <input id="rmRating" type="number" min="0" max="5" step="0.5" />
+      </div>
+      <div>
+        <label>到訪日期</label>
+        <input id="rmVisitDate" type="date" />
+      </div>
+    </div>
+    <label>評論 *</label>
+    <textarea id="rmComment" maxlength="2000"></textarea>
+    <div class="err" id="rmErr"></div>
+    <div class="actions">
+      <button class="btn" id="rmCancel">取消</button>
+      <button class="btn primary" id="rmConfirm">提交</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="./config.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>

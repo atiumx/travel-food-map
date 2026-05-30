@@ -1,0 +1,22 @@
+[
+  {
+    "slug": "kyushu",
+    "name_zh": "九州",
+    "name_en": "Kyushu",
+    "status": "active",
+    "sort_order": 10,
+    "center_lat": 33.5904,
+    "center_lng": 130.4017,
+    "default_zoom": 11
+  },
+  {
+    "slug": "osaka",
+    "name_zh": "大阪",
+    "name_en": "Osaka",
+    "status": "planned",
+    "sort_order": 30,
+    "center_lat": 34.6937,
+    "center_lng": 135.5023,
+    "default_zoom": 13
+  }
+]

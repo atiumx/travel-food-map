@@ -1,0 +1,18 @@
+# Secrets
+.env
+.env.local
+*.service_role*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Local backups
+backups/local/
