@@ -6,7 +6,7 @@
  *   - Photo storage (food-map-photos object/public): cache-first (immutable URLs)
  *   - Supabase REST/RPC: network-only (always fresh, may fail offline)
  */
-const SW_VERSION = "v1.0.12-darkmode-backbtn";
+const SW_VERSION = "v1.0.13-network-first-shell";
 const CACHE_SHELL  = `tfm-shell-${SW_VERSION}`;
 const CACHE_DATA   = `tfm-data-${SW_VERSION}`;
 const CACHE_TILES  = `tfm-tiles`;        // 不带版本，cross-deploy 持久
@@ -155,6 +155,28 @@ async function staleWhileRevalidate(req, cacheName) {
   return cached || (await fetchPromise) || new Response("", { status: 504 });
 }
 
+// network-first: try network, fall back to cache on failure.
+// Used for app shell (index.html / app.js / sw.js / config.js) so updates
+// take effect on next reload without waiting for SW lifecycle.
+async function networkFirstShell(req) {
+  const cache = await caches.open(CACHE_SHELL);
+  try {
+    const resp = await fetch(req);
+    if (resp && resp.ok && req.method === "GET") {
+      cache.put(req, resp.clone()).catch(() => {});
+    }
+    return resp;
+  } catch (e) {
+    const cached = await cache.match(req);
+    if (cached) return cached;
+    if (req.mode === "navigate") {
+      const idx = await cache.match("./index.html") || await cache.match("./");
+      if (idx) return idx;
+    }
+    return new Response("offline", { status: 504 });
+  }
+}
+
 async function cacheFirstShell(req) {
   const cache = await caches.open(CACHE_SHELL);
   const cached = await cache.match(req);
@@ -166,13 +188,19 @@ async function cacheFirstShell(req) {
     }
     return resp;
   } catch (e) {
-    // Fallback for navigation requests → return cached index.html
     if (req.mode === "navigate") {
       const idx = await cache.match("./index.html") || await cache.match("./");
       if (idx) return idx;
     }
     return new Response("offline", { status: 504 });
   }
+}
+
+function isAppShellAsset(url) {
+  // same-origin HTML / JS / CSS / manifest are app shell — must always be fresh
+  if (url.origin !== self.location.origin) return false;
+  const p = url.pathname;
+  return /\.(html?|js|css|webmanifest)$/i.test(p) || p === "/" || p.endsWith("/travel-food-map/");
 }
 
 self.addEventListener("fetch", evt => {
@@ -199,7 +227,12 @@ self.addEventListener("fetch", evt => {
     evt.respondWith(staleWhileRevalidate(req, CACHE_DATA));
     return;
   }
-  // App shell / same-origin / CDN deps → cache-first
+  // App shell (same-origin HTML/JS/CSS) → network-first so updates land immediately
+  if (req.mode === "navigate" || isAppShellAsset(url)) {
+    evt.respondWith(networkFirstShell(req));
+    return;
+  }
+  // CDN deps (leaflet etc) → cache-first (versioned, safe to cache hard)
   evt.respondWith(cacheFirstShell(req));
 });
 
