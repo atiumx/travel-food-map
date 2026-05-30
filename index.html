@@ -693,7 +693,7 @@ body {
 /* Hide sheet handle on desktop */
 .sheet-handle { display: none; }
 
-/* ---- G1: Map FAB (mobile only) ---- */
+/* ---- G1: Map FAB (mobile only, sheet-aware) ---- */
 .map-fab-stack {
   display: none;
 }
@@ -702,8 +702,20 @@ body {
     display: flex; flex-direction: column; gap: 10px;
     position: fixed;
     right: calc(14px + var(--sar, 0px));
-    bottom: calc(110px + var(--sab, 0px)); /* above peek-sheet */
+    /* Default peek: sit above peek-sheet (140px) */
+    bottom: calc(154px + var(--sab, 0px));
     z-index: 1100;
+    transition: bottom 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s, visibility 0.2s;
+  }
+  /* Sheet at half-snap: FAB floats above sheet top (sheet top=48dvh) */
+  body.sheet-half .map-fab-stack {
+    bottom: calc(52dvh + 12px);
+  }
+  /* Sheet at full-snap: hide FAB (map barely visible) */
+  body.sheet-full .map-fab-stack {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
   }
   .map-fab {
     width: 48px; height: 48px; border-radius: 24px;
@@ -832,6 +844,10 @@ body {
     /* G1-2: explicit stacking — prevents native picker breakage during sheet transform */
     position: relative;
     z-index: 1;
+  }
+  /* Merged cuisine+category select needs more room for "日式 · 餐廳" labels */
+  .filter-row > #categoryFilter {
+    width: 180px;
   }
   /* full-width single fields (search, area select) */
   .filters > select,
@@ -1037,8 +1053,10 @@ body {
       <select id="tripAreaSelect"></select>
       <input id="searchInput" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-i18n-placeholder="search.placeholder" placeholder="搜尋名稱／標籤／備註" />
       <div class="filter-row">
-        <select id="cuisineGroupFilter"><option value="" data-i18n="filter.all_cuisine">所有菜系</option></select>
-        <select id="categoryFilter"><option value="" data-i18n="filter.all_category">所有分類</option></select>
+        <!-- Merged cuisine + category select (2-level via optgroup) -->
+        <select id="categoryFilter"><option value="" data-i18n="filter.all_category">所有菜系／分類</option></select>
+        <!-- Hidden legacy element: preserved so URL state & cuisine_group sync code still works -->
+        <select id="cuisineGroupFilter" hidden aria-hidden="true" tabindex="-1" style="display:none"><option value="">所有菜系</option></select>
         <select id="priceFilter">
           <option value="" data-i18n="filter.all_price">所有價位</option>
           <option value="¥">¥</option>

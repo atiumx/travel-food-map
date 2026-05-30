@@ -543,9 +543,9 @@
   // I4: i18n (zh-TW / en / ja)
   // -----------------------------------------------------------
   const I18N = {
-    "zh-TW": { "app.title":"旅行美食地圖", "role.guest":"訪客", "search.placeholder":"搜尋名稱／標籤／備註", "filter.all_cuisine":"所有菜系", "filter.all_category":"所有分類", "filter.all_price":"所有價位", "filter.hours_all":"營業時間：所有", "filter.hours_now":"而家開緊", "filter.hours_today":"今日有開", "filter.hours_title":"營業時間篩選", "filter.bookmark_all":"收藏：所有", "filter.bookmark_wish":"⭐ 想去", "filter.bookmark_been":"✅ 已去", "filter.bookmark_fav":"❤️ 最愛", "filter.bookmark_none":"— 未收藏", "filter.bookmark_title":"收藏狀態篩選", "filter.day_all":"日子：所有", "filter.day_none":"— 未分配", "filter.day_title":"日子篩選", "filter.sort_title":"排序", "sort.default":"排序：預設", "sort.distance":"距離（步行圈）", "sort.rating":"評分（高→低）", "sort.recent":"最新加入", "sort.name":"名稱（A→Z）", "sort.random":"隨機", "btn.here":"📍 我而家", "btn.here_title":"用我而家位置做起點", "btn.share_title":"複製連結（含篩選）", "btn.heat":"🔥 熱力圖（按評分加權）", "btn.heat_title":"熱力圖 toggle", "budget.header":"💰 人均預算估算", "budget.total":"人均總預算", "budget.places_unit":"間店", "budget.per_place":"/店", "budget.unassigned":"未分配", "budget.empty":"未收藏任何餐廳。加⭐/✅/❤️ 後顯示總預算。", "budget.edit_rates":"調整單價 ⚙️", "theme.toggle":"切換亮/暗主題", "mapstyle.title":"地圖樣式", "empty.walking.title":"步行圈內未有地點", "empty.walking.hint":"可試擴大步行距離或重設起點", "empty.search.title":"找不到結果", "empty.search.hint":"以「{q}」為關鍵字沒有匹配。試調整篩選條件", "empty.places.title":"未有地點", "empty.places.hint":"可以由你開始新增", "detail.back_label":"返回列表", "detail.back":"返回列表" },
-    "en": { "app.title":"Travel Food Map", "role.guest":"Guest", "search.placeholder":"Search name / tags / notes", "filter.all_cuisine":"All cuisines", "filter.all_category":"All categories", "filter.all_price":"All prices", "filter.hours_all":"Hours: All", "filter.hours_now":"Open now", "filter.hours_today":"Open today", "filter.hours_title":"Filter by opening hours", "filter.bookmark_all":"Bookmark: All", "filter.bookmark_wish":"⭐ Wishlist", "filter.bookmark_been":"✅ Visited", "filter.bookmark_fav":"❤️ Favorite", "filter.bookmark_none":"— Unbookmarked", "filter.bookmark_title":"Filter by bookmark state", "filter.day_all":"Day: All", "filter.day_none":"— Unassigned", "filter.day_title":"Filter by trip day", "filter.sort_title":"Sort", "sort.default":"Sort: Default", "sort.distance":"Distance (walking)", "sort.rating":"Rating (high→low)", "sort.recent":"Recently added", "sort.name":"Name (A→Z)", "sort.random":"Random", "btn.here":"📍 Here", "btn.here_title":"Use current location as anchor", "btn.share_title":"Copy share link (with filters)", "btn.heat":"🔥 Heatmap (rating-weighted)", "btn.heat_title":"Toggle heatmap layer", "budget.header":"💰 Per-capita budget", "budget.total":"Estimated total", "budget.places_unit":"places", "budget.per_place":"/place", "budget.unassigned":"Unassigned", "budget.empty":"No bookmarks yet. Add ⭐/✅/❤️ to see totals.", "budget.edit_rates":"Edit rates ⚙️", "theme.toggle":"Toggle light/dark theme", "mapstyle.title":"Map style", "empty.walking.title":"No places in walking range", "empty.walking.hint":"Try expanding the radius or moving the anchor", "empty.search.title":"No results", "empty.search.hint":"No matches for “{q}”. Try adjusting filters.", "empty.places.title":"No places yet", "empty.places.hint":"Be the first to add one.", "detail.back_label":"Back to list", "detail.back":"Back to list" },
-    "ja": { "app.title":"旅行グルメマップ", "role.guest":"ゲスト", "search.placeholder":"名称／タグ／メモを検索", "filter.all_cuisine":"全ての料理", "filter.all_category":"全カテゴリ", "filter.all_price":"全価格帯", "filter.hours_all":"営業時間：全て", "filter.hours_now":"今開店中", "filter.hours_today":"本日営業", "filter.hours_title":"営業時間フィルター", "filter.bookmark_all":"ブックマーク：全て", "filter.bookmark_wish":"⭐ 行きたい", "filter.bookmark_been":"✅ 行った", "filter.bookmark_fav":"❤️ お気に入り", "filter.bookmark_none":"— 未登録", "filter.bookmark_title":"ブックマーク状態", "filter.day_all":"日付：全て", "filter.day_none":"— 未割当", "filter.day_title":"旅程日フィルター", "filter.sort_title":"並び替え", "sort.default":"並び：デフォルト", "sort.distance":"距離（徒歩圏）", "sort.rating":"評価（高→低）", "sort.recent":"新着順", "sort.name":"名前（A→Z）", "sort.random":"ランダム", "btn.here":"📍 現在地", "btn.here_title":"現在地をアンカーに設定", "btn.share_title":"共有リンクをコピー", "btn.heat":"🔥 ヒートマップ（評価加重）", "btn.heat_title":"ヒートマップを切り替え", "budget.header":"💰 一人あたり予算", "budget.total":"一人予算合計", "budget.places_unit":"店舗", "budget.per_place":"/店", "budget.unassigned":"未割当", "budget.empty":"ブックマーク未登録。⭐/✅/❤️ を追加して予算を表示。", "budget.edit_rates":"単価設定 ⚙️", "theme.toggle":"テーマ切替", "mapstyle.title":"地図スタイル", "empty.walking.title":"徒歩圈内に地点なし", "empty.walking.hint":"距離を拡げるか起点を再設定", "empty.search.title":"該当なし", "empty.search.hint":"「{q}」に一致しません。フィルターを調整してください。", "empty.places.title":"地点未登録", "empty.places.hint":"あなたから追加してください。", "detail.back_label":"リストに戻る", "detail.back":"リストに戻る" }
+    "zh-TW": { "app.title":"旅行美食地圖", "role.guest":"訪客", "search.placeholder":"搜尋名稱／標籤／備註", "filter.all_cuisine":"所有菜系", "filter.all_category":"所有菜系／分類", "filter.all_price":"所有價位", "filter.hours_all":"營業時間：所有", "filter.hours_now":"而家開緊", "filter.hours_today":"今日有開", "filter.hours_title":"營業時間篩選", "filter.bookmark_all":"收藏：所有", "filter.bookmark_wish":"⭐ 想去", "filter.bookmark_been":"✅ 已去", "filter.bookmark_fav":"❤️ 最愛", "filter.bookmark_none":"— 未收藏", "filter.bookmark_title":"收藏狀態篩選", "filter.day_all":"日子：所有", "filter.day_none":"— 未分配", "filter.day_title":"日子篩選", "filter.sort_title":"排序", "sort.default":"排序：預設", "sort.distance":"距離（步行圈）", "sort.rating":"評分（高→低）", "sort.recent":"最新加入", "sort.name":"名稱（A→Z）", "sort.random":"隨機", "btn.here":"📍 我而家", "btn.here_title":"用我而家位置做起點", "btn.share_title":"複製連結（含篩選）", "btn.heat":"🔥 熱力圖（按評分加權）", "btn.heat_title":"熱力圖 toggle", "budget.header":"💰 人均預算估算", "budget.total":"人均總預算", "budget.places_unit":"間店", "budget.per_place":"/店", "budget.unassigned":"未分配", "budget.empty":"未收藏任何餐廳。加⭐/✅/❤️ 後顯示總預算。", "budget.edit_rates":"調整單價 ⚙️", "theme.toggle":"切換亮/暗主題", "mapstyle.title":"地圖樣式", "empty.walking.title":"步行圈內未有地點", "empty.walking.hint":"可試擴大步行距離或重設起點", "empty.search.title":"找不到結果", "empty.search.hint":"以「{q}」為關鍵字沒有匹配。試調整篩選條件", "empty.places.title":"未有地點", "empty.places.hint":"可以由你開始新增", "detail.back_label":"返回列表", "detail.back":"返回列表" },
+    "en": { "app.title":"Travel Food Map", "role.guest":"Guest", "search.placeholder":"Search name / tags / notes", "filter.all_cuisine":"All cuisines", "filter.all_category":"All cuisines & categories", "filter.all_price":"All prices", "filter.hours_all":"Hours: All", "filter.hours_now":"Open now", "filter.hours_today":"Open today", "filter.hours_title":"Filter by opening hours", "filter.bookmark_all":"Bookmark: All", "filter.bookmark_wish":"⭐ Wishlist", "filter.bookmark_been":"✅ Visited", "filter.bookmark_fav":"❤️ Favorite", "filter.bookmark_none":"— Unbookmarked", "filter.bookmark_title":"Filter by bookmark state", "filter.day_all":"Day: All", "filter.day_none":"— Unassigned", "filter.day_title":"Filter by trip day", "filter.sort_title":"Sort", "sort.default":"Sort: Default", "sort.distance":"Distance (walking)", "sort.rating":"Rating (high→low)", "sort.recent":"Recently added", "sort.name":"Name (A→Z)", "sort.random":"Random", "btn.here":"📍 Here", "btn.here_title":"Use current location as anchor", "btn.share_title":"Copy share link (with filters)", "btn.heat":"🔥 Heatmap (rating-weighted)", "btn.heat_title":"Toggle heatmap layer", "budget.header":"💰 Per-capita budget", "budget.total":"Estimated total", "budget.places_unit":"places", "budget.per_place":"/place", "budget.unassigned":"Unassigned", "budget.empty":"No bookmarks yet. Add ⭐/✅/❤️ to see totals.", "budget.edit_rates":"Edit rates ⚙️", "theme.toggle":"Toggle light/dark theme", "mapstyle.title":"Map style", "empty.walking.title":"No places in walking range", "empty.walking.hint":"Try expanding the radius or moving the anchor", "empty.search.title":"No results", "empty.search.hint":"No matches for “{q}”. Try adjusting filters.", "empty.places.title":"No places yet", "empty.places.hint":"Be the first to add one.", "detail.back_label":"Back to list", "detail.back":"Back to list" },
+    "ja": { "app.title":"旅行グルメマップ", "role.guest":"ゲスト", "search.placeholder":"名称／タグ／メモを検索", "filter.all_cuisine":"全ての料理", "filter.all_category":"全料理／カテゴリ", "filter.all_price":"全価格帯", "filter.hours_all":"営業時間：全て", "filter.hours_now":"今開店中", "filter.hours_today":"本日営業", "filter.hours_title":"営業時間フィルター", "filter.bookmark_all":"ブックマーク：全て", "filter.bookmark_wish":"⭐ 行きたい", "filter.bookmark_been":"✅ 行った", "filter.bookmark_fav":"❤️ お気に入り", "filter.bookmark_none":"— 未登録", "filter.bookmark_title":"ブックマーク状態", "filter.day_all":"日付：全て", "filter.day_none":"— 未割当", "filter.day_title":"旅程日フィルター", "filter.sort_title":"並び替え", "sort.default":"並び：デフォルト", "sort.distance":"距離（徒歩圏）", "sort.rating":"評価（高→低）", "sort.recent":"新着順", "sort.name":"名前（A→Z）", "sort.random":"ランダム", "btn.here":"📍 現在地", "btn.here_title":"現在地をアンカーに設定", "btn.share_title":"共有リンクをコピー", "btn.heat":"🔥 ヒートマップ（評価加重）", "btn.heat_title":"ヒートマップを切り替え", "budget.header":"💰 一人あたり予算", "budget.total":"一人予算合計", "budget.places_unit":"店舗", "budget.per_place":"/店", "budget.unassigned":"未割当", "budget.empty":"ブックマーク未登録。⭐/✅/❤️ を追加して予算を表示。", "budget.edit_rates":"単価設定 ⚙️", "theme.toggle":"テーマ切替", "mapstyle.title":"地図スタイル", "empty.walking.title":"徒歩圈内に地点なし", "empty.walking.hint":"距離を拡げるか起点を再設定", "empty.search.title":"該当なし", "empty.search.hint":"「{q}」に一致しません。フィルターを調整してください。", "empty.places.title":"地点未登録", "empty.places.hint":"あなたから追加してください。", "detail.back_label":"リストに戻る", "detail.back":"リストに戻る" }
   };
   function getLang() { return localStorage.getItem("tfm_lang") || "zh-TW"; }
   function setLang(l) { localStorage.setItem("tfm_lang", l); applyI18n(); }
@@ -768,9 +768,18 @@
 
     function snapTo(target) {
       sheet.classList.remove("snap-half", "snap-full", "dragging");
-      if (target === "half") sheet.classList.add("snap-half");
-      else if (target === "full") sheet.classList.add("snap-full");
-      // "peek" = no class (uses default top from CSS var)
+      // Mirror snap state on <body> so FAB / sticky-filter CSS can react
+      document.body.classList.remove("sheet-peek", "sheet-half", "sheet-full");
+      if (target === "half") {
+        sheet.classList.add("snap-half");
+        document.body.classList.add("sheet-half");
+      } else if (target === "full") {
+        sheet.classList.add("snap-full");
+        document.body.classList.add("sheet-full");
+      } else {
+        document.body.classList.add("sheet-peek");
+      }
+      // "peek" = no class on sheet (uses default top from CSS var)
       currentSnap = target;
       sheet.style.top = ""; // clear inline so CSS class wins
       haptic(8);
@@ -836,6 +845,8 @@
     });
 
     window.__sheetSnapTo = snapTo;
+    // Initialize body sheet-peek class so FAB sits at correct default offset
+    document.body.classList.add("sheet-peek");
   }
 
   // ---- Move Leaflet zoom to bottom-right on mobile ----
@@ -1065,7 +1076,32 @@
       tripAreaSelect.value = area;
     }
     const q = params.get("q");      if (q) searchInput.value = q;
-    const cat = params.get("cat");  if (cat) categoryFilter.value = cat;
+    // Merged categoryFilter accepts "cg:<key>", "cat:<sub>" or legacy bare sub-category name.
+    const cat = params.get("cat");
+    if (cat) {
+      let mapped = cat;
+      if (!cat.startsWith("cg:") && !cat.startsWith("cat:")) {
+        // Legacy bare value → cat:<sub>
+        mapped = `cat:${cat}`;
+      }
+      categoryFilter.value = mapped;
+      // Also sync hidden cuisineGroupFilter for parent group (for applyFilters legacy fallback)
+      const cgFilterEl = $("cuisineGroupFilter");
+      if (mapped.startsWith("cat:") && cgFilterEl) {
+        const sub = mapped.slice(4);
+        const parent = Object.entries(CUISINE_GROUPS).find(([_, g]) => g.subs.includes(sub));
+        cgFilterEl.value = parent ? parent[0] : "";
+      } else if (mapped.startsWith("cg:") && cgFilterEl) {
+        cgFilterEl.value = mapped.slice(3);
+      }
+    }
+    // Legacy ?cg=<key> still supported for older shared links
+    const cgUrl = params.get("cg");
+    if (cgUrl) {
+      const cgFilterEl = $("cuisineGroupFilter");
+      if (cgFilterEl) cgFilterEl.value = cgUrl;
+      if (!cat) categoryFilter.value = `cg:${cgUrl}`;
+    }
     const price = params.get("price"); if (price) priceFilter.value = price;
     const sort = params.get("sort");   if (sort) { $("sortBy").value = sort; state.sortBy = sort; }
     const open = params.get("open");   if (open) { $("openFilter").value = open; state.openFilter = open; }
@@ -1115,38 +1151,54 @@
   }
 
   function populateCategorySelects() {
-    // G2: cuisine_group filter (top-level)
+    // Merged cuisine + category select with 2-level <optgroup>.
+    // Value scheme:
+    //   ""            = all
+    //   "cg:<key>"    = whole cuisine group (matches places.cuisine_group)
+    //   "cat:<sub>"   = exact sub-category (matches places.category)
+    if (categoryFilter && categoryFilter.options.length <= 1) {
+      const prevVal = categoryFilter.value;
+      categoryFilter.innerHTML = '<option value="" data-i18n="filter.all_category">所有菜系／分類</option>';
+      for (const [key, g] of Object.entries(CUISINE_GROUPS)) {
+        const og = document.createElement("optgroup");
+        og.label = `${g.emoji} ${g.label}`;
+        // Group-level option: 「全部〇〇」 (match cuisine_group)
+        const allOpt = new Option(`全部${g.label}`, `cg:${key}`);
+        og.appendChild(allOpt);
+        for (const sub of g.subs) {
+          og.appendChild(new Option(`· ${sub}`, `cat:${sub}`));
+        }
+        categoryFilter.appendChild(og);
+      }
+      if (prevVal) categoryFilter.value = prevVal;
+    }
+    // Hidden legacy cuisineGroupFilter — keep populated for URL compat (saveStateToURL reads it indirectly via state.cuisineGroup? No: applyFilters reads .value directly, so we sync below.)
     const cgFilter = $("cuisineGroupFilter");
     if (cgFilter && cgFilter.options.length <= 1) {
       for (const [key, g] of Object.entries(CUISINE_GROUPS)) {
         cgFilter.appendChild(new Option(`${g.emoji} ${g.label}`, key));
       }
     }
-    // G2: cuisine_group in modal
+    // Modal cuisine_group + sub-category pickers (unchanged 2-step UX in modal)
     const pmCG = $("pmCuisineGroup");
     if (pmCG && pmCG.options.length === 0) {
       pmCG.appendChild(new Option("—", ""));
       for (const [key, g] of Object.entries(CUISINE_GROUPS)) {
         pmCG.appendChild(new Option(`${g.emoji} ${g.label}`, key));
       }
-      // Auto-narrow sub-category when group changes
       pmCG.addEventListener("change", () => {
         repopulateCategoryOptions(pmCG.value);
       });
     }
-    repopulateCategoryOptions(""); // initial: all
+    repopulateCategoryOptions(""); // initial modal sub-list
   }
 
   function repopulateCategoryOptions(groupKey) {
+    // Only repopulates the modal "pmCategory" sub-category picker now.
+    // The main filter (categoryFilter) is a single static merged select.
     const subs = groupKey && CUISINE_GROUPS[groupKey]
       ? CUISINE_GROUPS[groupKey].subs
       : CATEGORIES;
-    // filter dropdown
-    const cur1 = categoryFilter.value;
-    categoryFilter.innerHTML = '<option value="">所有分類</option>';
-    for (const c of subs) categoryFilter.appendChild(new Option(c, c));
-    if (subs.includes(cur1)) categoryFilter.value = cur1;
-    // modal
     const pmCat = $("pmCategory");
     if (pmCat) {
       const cur2 = pmCat.value;
@@ -1170,16 +1222,23 @@
       if (state.showStations) renderStationMarkers();
     });
     searchInput.addEventListener("input", applyFilters);
-    categoryFilter.addEventListener("change", applyFilters);
+    // Merged cuisine+category filter: parse value prefix and sync hidden legacy cuisineGroupFilter
+    categoryFilter.addEventListener("change", () => {
+      const v = categoryFilter.value;
+      const cgFilterEl = $("cuisineGroupFilter");
+      if (!v) {
+        if (cgFilterEl) cgFilterEl.value = "";
+      } else if (v.startsWith("cg:")) {
+        if (cgFilterEl) cgFilterEl.value = v.slice(3);
+      } else if (v.startsWith("cat:")) {
+        // Sub-category implies its parent group too (for URL/state consistency)
+        const sub = v.slice(4);
+        const parent = Object.entries(CUISINE_GROUPS).find(([_, g]) => g.subs.includes(sub));
+        if (cgFilterEl) cgFilterEl.value = parent ? parent[0] : "";
+      }
+      applyFilters();
+    });
     priceFilter.addEventListener("change", applyFilters);
-    const cgFilter = $("cuisineGroupFilter");
-    if (cgFilter) {
-      cgFilter.addEventListener("change", () => {
-        // Narrow category sub-list to group's subs
-        repopulateCategoryOptions(cgFilter.value);
-        applyFilters();
-      });
-    }
 
     $("openFilter").addEventListener("change", (e) => {
       state.openFilter = e.target.value;
@@ -1338,11 +1397,9 @@
         closeDetailPanel();
         // K1-fix: after back, restore main sheet to half-snap so list is visible
         if (isMobile()) {
-          const sheet = $("sidebar");
-          if (sheet && !sheet.classList.contains("snap-half") && !sheet.classList.contains("snap-full")) {
-            sheet.classList.remove("snap-full");
-            sheet.classList.add("snap-half");
-            sheet.style.top = "";
+          // Use central snapTo so body class stays in sync (FAB visibility, etc.)
+          if (typeof window.__sheetSnapTo === "function") {
+            window.__sheetSnapTo("half");
           }
         }
       });
@@ -1470,7 +1527,11 @@
 
   function applyFilters() {
     const q = searchInput.value.trim().toLowerCase();
-    const cat = categoryFilter.value;
+    // Merged select value: "" | "cg:<key>" | "cat:<sub>"
+    const rawCat = categoryFilter.value;
+    let catFilter = "", cgFromMerged = "";
+    if (rawCat.startsWith("cat:")) catFilter = rawCat.slice(4);
+    else if (rawCat.startsWith("cg:")) cgFromMerged = rawCat.slice(3);
     const price = priceFilter.value;
 
     // 步行圈：AND filter、取 max distance 作為「最差頂 anchor」
@@ -1480,10 +1541,11 @@
       : [];
     const radiusM = validAnchors.length > 0 ? w.minutes * WALK_METRES_PER_MIN : null;
 
-    const cgVal = ($("cuisineGroupFilter") && $("cuisineGroupFilter").value) || "";
+    // Prefer merged-select group; fall back to legacy hidden cuisineGroupFilter (for URL restore)
+    const cgVal = cgFromMerged || (($("cuisineGroupFilter") && $("cuisineGroupFilter").value) || "");
     state.filtered = state.places.filter(p => {
       if (cgVal && p.cuisine_group !== cgVal) return false;
-      if (cat && p.category !== cat) return false;
+      if (catFilter && p.category !== catFilter) return false;
       if (price && p.price_level !== price) return false;
       if (q) {
         const hay = [
