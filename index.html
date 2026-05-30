@@ -247,6 +247,14 @@ body {
   color: var(--muted);
 }
 .facet-chip.facet-clear:hover { background: var(--hover-bg); }
+/* I2-extra: tag chips visually subtler than quality facet chips */
+.facet-chip.tag-chip {
+  font-size: 11px;
+  padding: 3px 8px;
+  opacity: 0.85;
+}
+.facet-chip.tag-chip.active { opacity: 1; }
+.tag-facet-row { margin-top: 0; }
 /* I3: day-strip timeline */
 .day-strip {
   display: flex;
@@ -1224,6 +1232,8 @@ body {
       </div>
       <!-- I2: Facet tag chips (quality signals) -->
       <div class="facet-row" id="facetChips" aria-label="品質標籤篩選"></div>
+      <!-- I2-extra: dynamic popular tag chips (extracted from current trip area) -->
+      <div class="facet-row tag-facet-row" id="tagFacetChips" aria-label="熱門標籤篩選"></div>
       <!-- I3: Day timeline strip (auto-rendered from places.day_tag) -->
       <div class="day-strip" id="dayStrip" aria-label="行程 Day 篩選"></div>
       <div class="filter-row">

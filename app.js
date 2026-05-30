@@ -102,6 +102,7 @@
     bookmarkFilter: "",       // "" | "wishlist" | "been" | "favorite" | "none"
     dayFilter: "",            // "" | "1"."7" | "none"
     tagFacets: new Set(),     // I2: 多選 facet tag filter（OR 邏輯）
+    tagTagsSelected: new Set(),  // I2-extra: 多選用戶 tag filter（AND 邏輯 + tags array contains）
 
     // 步行圈（多 anchor）
     walking: {
@@ -723,7 +724,8 @@
     const sf = document.getElementById("sortFilter");
     if (sf && sf.value && sf.value !== "default") n++;
     if (state.walking && state.walking.enabled) n++;
-    if (state.facetFilter) n++;
+    if (state.tagFacets && state.tagFacets.size > 0) n += state.tagFacets.size;
+    if (state.tagTagsSelected && state.tagTagsSelected.size > 0) n += state.tagTagsSelected.size;
     if (n > 0) { badge.hidden = false; badge.textContent = String(n); }
     else       { badge.hidden = true; }
   }
@@ -1629,7 +1631,55 @@
     state.places = data || [];
     // I3: Refresh day strip on every area data load
     renderDayStrip();
+    // I2-extra: rebuild popular tag chips for this area (clear stale selections from previous area)
+    state.tagTagsSelected = new Set();
+    renderTagFacetChips();
     applyFilters();
+  }
+
+  // I2-extra: build chips from the top 8 most-common user tags in current area's places.
+  // Selected tags filter places with AND semantics (place must contain all selected tags).
+  function renderTagFacetChips() {
+    const wrap = document.getElementById("tagFacetChips");
+    if (!wrap) return;
+    const counts = new Map();
+    for (const p of (state.places || [])) {
+      const tags = p.tags || [];
+      for (const t of tags) {
+        if (!t) continue;
+        const k = String(t).trim();
+        if (!k) continue;
+        counts.set(k, (counts.get(k) || 0) + 1);
+      }
+    }
+    // sort by count desc, then alpha; take top 8
+    const top = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 8);
+    wrap.innerHTML = "";
+    if (top.length === 0) { wrap.style.display = "none"; return; }
+    wrap.style.display = "";
+    for (const [tag, count] of top) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "facet-chip tag-chip";
+      btn.dataset.tag = tag;
+      btn.textContent = `${tag} (${count})`;
+      btn.setAttribute("aria-pressed", "false");
+      btn.addEventListener("click", () => {
+        if (state.tagTagsSelected.has(tag)) {
+          state.tagTagsSelected.delete(tag);
+          btn.classList.remove("active");
+          btn.setAttribute("aria-pressed", "false");
+        } else {
+          state.tagTagsSelected.add(tag);
+          btn.classList.add("active");
+          btn.setAttribute("aria-pressed", "true");
+        }
+        applyFilters();
+      });
+      wrap.appendChild(btn);
+    }
   }
 
   function applyFilters() {
@@ -1709,6 +1759,16 @@
           if (matchFacet(p, tags, facet)) return true;
         }
         return false;
+      });
+    }
+    // I2-extra: user tag filter (AND semantics — must contain ALL selected tags)
+    if (state.tagTagsSelected && state.tagTagsSelected.size > 0) {
+      state.filtered = state.filtered.filter(p => {
+        const tags = (p.tags || []).map(String);
+        for (const need of state.tagTagsSelected) {
+          if (!tags.includes(need)) return false;
+        }
+        return true;
       });
     }
 
