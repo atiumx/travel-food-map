@@ -173,6 +173,26 @@ body {
   display: flex; justify-content: space-between; font-size: 12px; color: var(--muted);
 }
 
+/* Suggestions */
+.suggestions { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+.suggestions h3 { font-size: 13px; margin: 0 0 6px; color: var(--muted); display:flex; align-items:center; gap:6px; }
+.suggestion {
+  padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 13px;
+}
+.suggestion:last-child { border-bottom: none; }
+.suggestion .head {
+  display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); gap: 6px; flex-wrap: wrap;
+}
+.sug-badge {
+  display:inline-block; padding:1px 6px; border-radius:10px; font-size:11px; font-weight:600;
+}
+.sug-badge.correction { background:#e8eef5; color:#2c5b8f; }
+.sug-badge.recommend  { background:#e6f3e6; color:#2d6a2d; }
+.sug-badge.warning    { background:#fbe7e2; color:#a04020; }
+.sug-badge.pending    { background:#f4ecd6; color:#7a5b0a; }
+.sug-actions { display:flex; gap:6px; margin-top:4px; }
+.sug-actions .btn { font-size:11px; padding:2px 8px; }
+
 /* Modal */
 .modal-bg {
   position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 2000;
@@ -398,6 +418,12 @@ body {
     <div id="reviewList"></div>
     <button class="btn primary" id="addReviewBtn" style="margin-top:10px;" disabled>新增評論</button>
   </div>
+
+  <div class="suggestions">
+    <h3>建議 <span id="detailPendingBadge" style="display:none;" class="sug-badge pending">待審</span></h3>
+    <div id="suggestionList"></div>
+    <button class="btn" id="addSuggestionBtn" style="margin-top:10px;" disabled>提建議（有錯／推薦／勸退）</button>
+  </div>
 </aside>
 
 <!-- Invite modal -->
@@ -462,6 +488,36 @@ body {
     <div class="actions">
       <button class="btn" id="pmCancel">取消</button>
       <button class="btn primary" id="pmConfirm">提交</button>
+    </div>
+  </div>
+</div>
+
+<!-- Suggestion modal -->
+<div class="modal-bg" id="suggestionModal">
+  <div class="modal">
+    <h2>提建議</h2>
+    <div id="sgPlaceName" style="font-size:13px;color:var(--muted);margin-bottom:8px;"></div>
+    <label>類型 *</label>
+    <select id="sgType">
+      <option value="correction">有錯（資料更正）</option>
+      <option value="recommend">推薦</option>
+      <option value="warning">勸退</option>
+    </select>
+    <label>推薦度 / 評分（1–5，<span id="sgRatingHint">推薦／勸退必填</span>）</label>
+    <select id="sgRating">
+      <option value="">—</option>
+      <option value="1">1 ★</option>
+      <option value="2">2 ★★</option>
+      <option value="3">3 ★★★</option>
+      <option value="4">4 ★★★★</option>
+      <option value="5">5 ★★★★★</option>
+    </select>
+    <label>內容 *</label>
+    <textarea id="sgComment" maxlength="2000" placeholder="例如：營業時間更新／菜式特別好食／service 差勿幫襯"></textarea>
+    <div class="err" id="sgErr"></div>
+    <div class="actions">
+      <button class="btn" id="sgCancel">取消</button>
+      <button class="btn primary" id="sgConfirm">提交</button>
     </div>
   </div>
 </div>

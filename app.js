@@ -307,6 +307,34 @@
     });
     $("rmCancel").addEventListener("click", () => closeModal("reviewModal"));
     $("rmConfirm").addEventListener("click", handleAddReview);
+
+    // Suggestion flow
+    $("addSuggestionBtn").addEventListener("click", () => {
+      if (state.role === "guest" || !state.selectedPlaceId) return;
+      const place = state.places.find(p => p.id === state.selectedPlaceId);
+      $("sgPlaceName").textContent = place ? place.name : "";
+      $("sgType").value = "correction";
+      $("sgRating").value = "";
+      $("sgComment").value = "";
+      $("sgErr").textContent = "";
+      updateSuggestionRatingHint();
+      openModal("suggestionModal");
+    });
+    $("sgType").addEventListener("change", updateSuggestionRatingHint);
+    $("sgCancel").addEventListener("click", () => closeModal("suggestionModal"));
+    $("sgConfirm").addEventListener("click", handleSubmitSuggestion);
+  }
+
+  function updateSuggestionRatingHint() {
+    const t = $("sgType").value;
+    const hint = $("sgRatingHint");
+    if (t === "recommend" || t === "warning") {
+      hint.textContent = "必填";
+      hint.style.color = "var(--accent)";
+    } else {
+      hint.textContent = "可空（資料更正可不填）";
+      hint.style.color = "var(--muted)";
+    }
   }
 
   // -----------------------------------------------------------
@@ -824,6 +852,9 @@
     if (p.lat && p.lng) map.panTo([p.lat, p.lng]);
     renderList(); // refresh active state
 
+    // suggestions (parallel with reviews)
+    loadAndRenderSuggestions(placeId).catch(() => {});
+
     // Load reviews
     const { data, error } = await sb
       .from("reviews")
@@ -888,6 +919,7 @@
     const canWrite = state.role !== "guest";
     addPlaceBtn.disabled = !canWrite;
     $("addReviewBtn").disabled = !canWrite;
+    $("addSuggestionBtn").disabled = !canWrite;
     inviteBtn.textContent = canWrite ? "切換身份" : "輸入邀請碼";
   }
 
@@ -967,6 +999,129 @@
     closeModal("reviewModal");
     $("rmRating").value = ""; $("rmComment").value = ""; $("rmVisitDate").value = "";
     await openPlaceDetail(state.selectedPlaceId);
+  }
+
+  // -----------------------------------------------------------
+  // Suggestions: submit + load + render + review
+  // -----------------------------------------------------------
+  const SUG_TYPE_LABEL = { correction: "資料更正", recommend: "推薦", warning: "勸退" };
+
+  async function handleSubmitSuggestion() {
+    const errEl = $("sgErr"); errEl.textContent = "";
+    const type = $("sgType").value;
+    const ratingRaw = $("sgRating").value;
+    const rating = ratingRaw === "" ? null : parseInt(ratingRaw, 10);
+    const comment = $("sgComment").value.trim();
+
+    if (!state.selectedPlaceId) { errEl.textContent = "未選擇地點"; return; }
+    if (!comment) { errEl.textContent = "請輸入內容"; return; }
+    if ((type === "recommend" || type === "warning") && rating == null) {
+      errEl.textContent = "推薦／勸退需填 1–5 分"; return;
+    }
+
+    const { error } = await sb.rpc("submit_place_suggestion", {
+      p_invite_code: state.inviteCode,
+      p_display_name: state.displayName,
+      p_place_id: state.selectedPlaceId,
+      p_type: type,
+      p_rating: rating,
+      p_comment: comment,
+    });
+    if (error) {
+      const msg = error.message || "提交失敗";
+      errEl.textContent = msg.includes("rating_required") ? "推薦／勸退需填評分"
+        : msg.includes("comment_required") ? "請輸入內容"
+        : msg.includes("invite") ? "邀請碼無效或已用完"
+        : "提交失敗：" + msg;
+      return;
+    }
+    closeModal("suggestionModal");
+    showToast("建議已提交，等 owner 審核");
+    await loadAndRenderSuggestions(state.selectedPlaceId);
+  }
+
+  async function loadAndRenderSuggestions(placeId) {
+    const listEl = $("suggestionList");
+    const badgeEl = $("detailPendingBadge");
+    listEl.innerHTML = '<div style="color:var(--muted);font-size:12px;">載入中…</div>';
+    badgeEl.style.display = "none";
+
+    // anon RLS sees only approved. Owner sees all via _consume_invite RPC? No — RLS is fixed.
+    // For pending visibility to owner we'd need a SECURITY DEFINER RPC; simpler: owner sees a separate RPC OR we relax RLS for owner-named header.
+    // Current scope: anon sees approved only. Owner additionally sees pending by calling a dedicated RPC. For B2 minimal — we just show approved to everyone.
+    // TODO: owner pending view via dedicated RPC. For now, owner sees same approved list and submits/reviews via direct UI in a later sub-pass.
+    const { data: approved, error: e1 } = await sb
+      .from("place_suggestions")
+      .select("*")
+      .eq("place_id", placeId)
+      .eq("status", "approved")
+      .order("created_at", { ascending: false });
+    if (e1) { listEl.innerHTML = '<div class="list-empty">載入失敗</div>'; return; }
+
+    let pending = [];
+    if (state.role === "owner") {
+      const { data: pData } = await sb.rpc("list_pending_suggestions", {
+        p_invite_code: state.inviteCode,
+        p_display_name: state.displayName,
+        p_place_id: placeId,
+      }).then(r => r, () => ({ data: [] }));
+      pending = pData || [];
+    }
+
+    if (pending.length > 0) {
+      badgeEl.textContent = `${pending.length} 待審`;
+      badgeEl.style.display = "";
+    }
+
+    const all = [...pending, ...(approved || [])];
+    if (all.length === 0) {
+      listEl.innerHTML = '<div style="color:var(--muted);font-size:12px;">未有建議</div>';
+      return;
+    }
+
+    listEl.innerHTML = all.map(s => {
+      const typeLabel = SUG_TYPE_LABEL[s.type] || s.type;
+      const rating = s.rating != null ? ` · ${"★".repeat(s.rating)}` : "";
+      const statusBadge = s.status === "pending"
+        ? '<span class="sug-badge pending">待審</span>' : "";
+      const ownerActions = (state.role === "owner" && s.status === "pending")
+        ? `<div class="sug-actions">
+             <button class="btn primary" data-sg-id="${s.id}" data-act="approved">通過</button>
+             <button class="btn" data-sg-id="${s.id}" data-act="rejected">拒絕</button>
+           </div>`
+        : "";
+      return `
+        <div class="suggestion">
+          <div class="head">
+            <span><span class="sug-badge ${s.type}">${typeLabel}</span>${rating} · ${escapeHtml(s.suggested_by_name)} ${statusBadge}</span>
+            <span>${s.created_at.substring(0,10)}</span>
+          </div>
+          <div>${escapeHtml(s.comment)}</div>
+          ${ownerActions}
+        </div>
+      `;
+    }).join("");
+
+    // wire owner buttons
+    listEl.querySelectorAll("[data-sg-id]").forEach(btn => {
+      btn.addEventListener("click", () => handleReviewSuggestion(btn.dataset.sgId, btn.dataset.act));
+    });
+  }
+
+  async function handleReviewSuggestion(suggestionId, status) {
+    if (state.role !== "owner") return;
+    const { error } = await sb.rpc("review_place_suggestion", {
+      p_invite_code: state.inviteCode,
+      p_display_name: state.displayName,
+      p_suggestion_id: suggestionId,
+      p_status: status,
+    });
+    if (error) {
+      showToast("審核失敗：" + error.message);
+      return;
+    }
+    showToast(status === "approved" ? "已通過" : "已拒絕");
+    await loadAndRenderSuggestions(state.selectedPlaceId);
   }
 
   // -----------------------------------------------------------
