@@ -223,9 +223,9 @@ body {
 }
 .facet-chip {
   appearance: none;
-  background: #f4f1ec;
-  border: 1px solid #d8d2c7;
-  color: #4a3e30;
+  background: var(--chip-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
   border-radius: 14px;
   padding: 4px 10px;
   font-size: 12px;
@@ -234,19 +234,19 @@ body {
   white-space: nowrap;
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
-.facet-chip:hover { background: #ebe4d7; }
+.facet-chip:hover { background: var(--hover-bg); }
 .facet-chip.active {
-  background: #b8412c;
-  border-color: #9a3624;
+  background: var(--accent);
+  border-color: var(--accent);
   color: #fff;
   font-weight: 600;
 }
 .facet-chip.facet-clear {
   background: transparent;
-  border-color: #c8c0b3;
-  color: #7a7062;
+  border-color: var(--border);
+  color: var(--muted);
 }
-.facet-chip.facet-clear:hover { background: #f0eadd; }
+.facet-chip.facet-clear:hover { background: var(--hover-bg); }
 /* I3: day-strip timeline */
 .day-strip {
   display: flex;
@@ -261,8 +261,8 @@ body {
 .day-pill {
   appearance: none;
   background: var(--input-bg);
-  border: 1px solid #d8d2c7;
-  color: #4a3e30;
+  border: 1px solid var(--border);
+  color: var(--text);
   border-radius: 10px;
   padding: 4px 9px;
   font-size: 12px;
@@ -275,10 +275,10 @@ body {
   gap: 5px;
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
-.day-pill:hover { background: #f4f1ec; }
+.day-pill:hover { background: var(--hover-bg); }
 .day-pill.active {
-  background: #2c6fb8;
-  border-color: #225590;
+  background: var(--accent);
+  border-color: var(--accent);
   color: #fff;
   font-weight: 600;
 }
@@ -304,7 +304,7 @@ body {
   padding: 10px 16px; border-bottom: 1px solid var(--border);
   cursor: pointer;
 }
-.place-item:hover { background: #faf8f3; }
+.place-item:hover { background: var(--hover-bg); }
 .place-item.active { background: var(--accent-soft); }
 .place-item .name { font-weight: 600; font-size: 14px; }
 .place-item .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
@@ -457,7 +457,7 @@ body {
   border: 1px solid var(--border); background: var(--input-bg); color: var(--text);
   border-radius: 6px; cursor: pointer;
 }
-.btn:hover { background: #faf8f3; }
+.btn:hover { background: var(--hover-bg); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.primary:hover { background: #9a3522; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -511,6 +511,8 @@ body {
   position: absolute; top: 8px; right: 10px;
   background: none; border: none; font-size: 18px; cursor: pointer; color: var(--muted);
 }
+/* Desktop: hide mobile back button */
+.detail-back-btn { display: none; }
 .reviews { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
 .reviews h3 { font-size: 13px; margin: 0 0 6px; color: var(--muted); }
 .review {
@@ -525,7 +527,7 @@ body {
 .station-search-row .result-item {
   padding: 5px 8px; cursor: pointer; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; gap:6px;
 }
-.station-search-row .result-item:hover { background: #f3f0e8; }
+.station-search-row .result-item:hover { background: var(--hover-bg); }
 .station-search-row .result-item:last-child { border-bottom: none; }
 .station-search-row .result-item .sys { font-size: 10px; color: var(--muted); }
 .station-icon {
@@ -615,7 +617,7 @@ body {
 .walking-panel {
   padding: 10px 16px;
   border-bottom: 1px solid var(--border);
-  background: #fbfaf6;
+  background: var(--input-bg);
   display: flex; flex-direction: column; gap: 8px;
 }
 .walking-panel .row { display: flex; align-items: center; gap: 8px; }
@@ -666,7 +668,7 @@ body {
 .chip.active {
   background: var(--accent); border-color: var(--accent); color: #fff;
 }
-.chip:hover:not(.active) { background: #faf8f3; }
+.chip:hover:not(.active) { background: var(--hover-bg); }
 .walking-hint {
   font-size: 10px; color: var(--muted); line-height: 1.4;
 }
@@ -739,9 +741,12 @@ body {
   }
 
   .sidebar {
-    /* Bottom-sheet anchored to viewport bottom */
+    /* Bottom-sheet anchored to viewport bottom.
+       Sidebar TOP at fixed offset (--sheet-top), bottom at screen edge.
+       This keeps the entire sheet inside viewport so footer-actions always visible. */
     position: fixed;
     left: 0; right: 0;
+    top: var(--sheet-top, calc(100dvh - var(--sheet-peek, 140px)));
     bottom: 0;
     width: 100%;
     max-width: 100%;
@@ -751,16 +756,14 @@ body {
     border-top-right-radius: 14px;
     box-shadow: 0 -4px 16px rgba(0,0,0,0.12);
     z-index: 900;
-    transform: translateY(calc(100% - var(--sheet-peek, 140px)));
-    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-    will-change: transform;
-    max-height: calc(100dvh - 44px - var(--sat));
+    transform: none;
+    transition: top 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: top;
     padding-bottom: var(--sab);
   }
-  .sidebar.snap-half { transform: translateY(48dvh); }
-  .sidebar.snap-full { transform: translateY(44px); transform: translateY(calc(44px + var(--sat))); }
+  .sidebar.snap-half { top: 48dvh; }
+  .sidebar.snap-full { top: calc(44px + var(--sat)); }
   .sidebar.dragging { transition: none; }
-
   /* Drag handle */
   .sheet-handle {
     display: flex !important;
@@ -941,6 +944,25 @@ body {
     right: 8px;
     z-index: 2;
   }
+  /* K1-fix: mobile back button (top-left of detail panel) */
+  .detail-back-btn {
+    display: flex !important;
+    align-items: center;
+    gap: 4px;
+    position: absolute;
+    top: 4px;
+    left: 8px;
+    min-height: var(--tap-min);
+    padding: 8px 12px 8px 8px;
+    font-size: 14px;
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    z-index: 2;
+    font-weight: 500;
+  }
+  .detail-back-btn:active { opacity: 0.6; }
   /* expanded state — full coverage if user drags up */
   .detail.expanded {
     top: calc(8px + var(--sat)) !important;
@@ -1150,6 +1172,7 @@ body {
 <!-- Detail panel -->
 <aside class="detail" id="detailPanel">
   <div class="detail-handle" id="detailHandle" aria-hidden="true"></div>
+  <button class="detail-back-btn" id="detailBack" data-i18n="detail.back" aria-label="返回列表" type="button">← <span data-i18n="detail.back_label">返回列表</span></button>
   <button class="close-btn" id="detailClose" aria-label="關閉">×</button>
   <div class="detail-body" id="detailBody">
   <!-- I1: hero photo (real img if hero_photo_url, else CSS gradient + big emoji) -->
