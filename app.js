@@ -78,9 +78,13 @@
     walking: {
       enabled: false,
       minutes: 5,
-      anchors: [],           // [{ id, mode:"map"|"geo"|"place", lat, lng, label, placeId?, color }]
+      anchors: [],           // [{ id, mode:"map"|"geo"|"place"|"station", lat, lng, label, placeId?, stationId?, color }]
       lastError: null,
     },
+
+    // 車站 preset
+    stations: [],            // [{ id, name, name_en, lat, lng, sys, area, line }]
+    showStations: false,
   };
   state.bookmarks = loadBookmarks();
 
@@ -113,6 +117,10 @@
   const cluster = L.markerClusterGroup({ disableClusteringAtZoom: 16, maxClusterRadius: 40 });
   map.addLayer(cluster);
 
+  // Station layer (toggleable)
+  const stationLayer = L.layerGroup();
+  const stationMarkers = new Map(); // station_id -> marker
+
   // -----------------------------------------------------------
   // Init
   // -----------------------------------------------------------
@@ -125,6 +133,8 @@
     await loadPlacesForCurrentArea();
     // restoreStateFromURL 已 set filter values，但要 applyFilters 一次
     applyFilters();
+    // 背景 load 站點，唔阻主流程
+    loadStations().catch(err => console.warn("loadStations failed", err));
   }
 
   // -----------------------------------------------------------
@@ -187,6 +197,7 @@
     tripAreaSelect.addEventListener("change", async () => {
       state.currentTripAreaSlug = tripAreaSelect.value;
       await loadPlacesForCurrentArea();
+      if (state.showStations) renderStationMarkers();
     });
     searchInput.addEventListener("input", applyFilters);
     categoryFilter.addEventListener("change", applyFilters);
@@ -270,6 +281,20 @@
     $("addAnchorMap").addEventListener("click", () => addAnchor("map"));
     $("addAnchorGeo").addEventListener("click", () => addAnchor("geo"));
     $("addAnchorPlace").addEventListener("click", () => addAnchor("place"));
+    $("addAnchorStation").addEventListener("click", () => addAnchor("station"));
+
+    // 車站 search autocomplete
+    $("stationSearchInput").addEventListener("input", handleStationSearchInput);
+    $("stationSearchInput").addEventListener("focus", handleStationSearchInput);
+    $("stationSearchInput").addEventListener("blur", () => {
+      // delay 為 result click 趕到
+      setTimeout(() => { $("stationSearchResults").style.display = "none"; }, 200);
+    });
+
+    $("showStationsToggle").addEventListener("change", (e) => {
+      state.showStations = e.target.checked;
+      renderStationMarkers();
+    });
 
     // 地圖中心模式 anchor：拖動地圖要重新計
     map.on("moveend", () => {
@@ -680,6 +705,25 @@
       w.anchors.push({ id, mode, lat: p.lat, lng: p.lng, label: p.name, placeId: p.id, color });
       map.setView([p.lat, p.lng], 16);
       finalizeAnchorAdd();
+    } else if (mode === "station") {
+      // arg 為 station object; 如果未提供，揀第一個未用過嘅
+      let s = arguments[1];
+      const usedSids = new Set(w.anchors.filter(a => a.stationId).map(a => a.stationId));
+      if (!s) {
+        s = state.stations.find(x => !usedSids.has(x.id));
+      } else if (usedSids.has(s.id)) {
+        w.lastError = "該車站已作 anchor";
+        updateWalkingUI();
+        return;
+      }
+      if (!s) {
+        w.lastError = "未載入車站或全部已被用";
+        updateWalkingUI();
+        return;
+      }
+      w.anchors.push({ id, mode, lat: s.lat, lng: s.lng, label: `🚉 ${s.name}`, stationId: s.id, color });
+      map.setView([s.lat, s.lng], 15);
+      finalizeAnchorAdd();
     }
   }
 
@@ -704,11 +748,16 @@
       listEl.innerHTML = '<div style="font-size:11px;color:var(--muted);font-style:italic;">點下面「+」加起點</div>';
     } else {
       listEl.innerHTML = w.anchors.map(a => {
-        const icon = a.mode === "map" ? "🎯" : a.mode === "geo" ? "📍" : "📌";
+        const icon = a.mode === "map" ? "🎯"
+                   : a.mode === "geo" ? "📍"
+                   : a.mode === "station" ? "🚉"
+                   : "📌";
+        // a.label 可能已含 emoji prefix (station)
+        const labelText = a.mode === "station" ? a.label : `${icon} ${a.label}`;
         return `
           <div class="anchor-item" data-id="${a.id}">
             <span class="anchor-color" style="color:${a.color};"></span>
-            <span class="anchor-label">${icon} ${escapeHtml(a.label)}</span>
+            <span class="anchor-label">${escapeHtml(labelText)}</span>
             <button class="anchor-remove" data-id="${a.id}" title="移除">×</button>
           </div>
         `;
@@ -727,6 +776,114 @@
     $("addAnchorMap").disabled = full || w.anchors.some(a => a.mode === "map");
     $("addAnchorGeo").disabled = full || w.anchors.some(a => a.mode === "geo");
     $("addAnchorPlace").disabled = full;
+    const stationBtn = $("addAnchorStation");
+    if (stationBtn) stationBtn.disabled = full || state.stations.length === 0;
+  }
+
+  // -----------------------------------------------------------
+  // Stations (preset JR + subway)
+  // -----------------------------------------------------------
+  const SYS_LABEL = {
+    "jr-kyushu": "JR 九州",
+    "jr-west":   "JR 西日本",
+    "osaka-metro": "大阪メトロ",
+    "fukuoka-subway": "福岡市地下鐵",
+    "kobe-subway": "神戶地下鐵",
+  };
+
+  async function loadStations() {
+    try {
+      const res = await fetch("./data/stations.json", { cache: "force-cache" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      state.stations = data.stations || [];
+      renderAnchorList(); // 重新 enable 車站 btn
+      if (state.showStations) renderStationMarkers();
+    } catch (err) {
+      console.warn("loadStations error:", err);
+      state.stations = [];
+    }
+  }
+
+  function renderStationMarkers() {
+    // 清掉 layer
+    stationLayer.clearLayers();
+    stationMarkers.clear();
+    if (!state.showStations || state.stations.length === 0) {
+      if (map.hasLayer(stationLayer)) map.removeLayer(stationLayer);
+      return;
+    }
+    if (!map.hasLayer(stationLayer)) map.addLayer(stationLayer);
+
+    // 只 render 現在 trip_area 嘅車站（避免一次過 700+ markers）
+    const area = state.currentTripAreaSlug; // 'kyushu' | 'osaka'
+    const filtered = state.stations.filter(s => {
+      if (!area) return true;
+      if (area === "osaka") return s.area === "osaka";
+      if (area === "kyushu") return s.area === "kyushu";
+      return false;
+    });
+
+    for (const s of filtered) {
+      const icon = L.divIcon({
+        className: "",
+        html: `<div class="station-icon ${s.sys}"></div>`,
+        iconSize: [12, 12],
+        iconAnchor: [6, 6],
+      });
+      const m = L.marker([s.lat, s.lng], { icon, riseOnHover: true, keyboard: false });
+      const sysLabel = SYS_LABEL[s.sys] || s.sys;
+      m.bindTooltip(`<span class="station-tooltip">🚉 ${escapeHtml(s.name)} · ${escapeHtml(sysLabel)}${s.line ? " · " + escapeHtml(s.line) : ""}</span>`, { direction: "top", offset: [0, -4] });
+      m.on("click", () => addAnchor("station", s));
+      stationLayer.addLayer(m);
+      stationMarkers.set(s.id, m);
+    }
+  }
+
+  function handleStationSearchInput() {
+    const q = $("stationSearchInput").value.trim().toLowerCase();
+    const resEl = $("stationSearchResults");
+    if (!q || state.stations.length === 0) {
+      resEl.style.display = "none";
+      return;
+    }
+    // 只 search 現 trip_area
+    const area = state.currentTripAreaSlug;
+    let pool = state.stations;
+    if (area === "osaka") pool = pool.filter(s => s.area === "osaka");
+    else if (area === "kyushu") pool = pool.filter(s => s.area === "kyushu");
+
+    const matches = pool.filter(s =>
+      s.name.toLowerCase().includes(q) ||
+      (s.name_en && s.name_en.toLowerCase().includes(q))
+    ).slice(0, 20);
+
+    if (matches.length === 0) {
+      resEl.innerHTML = '<div class="result-item" style="cursor:default;color:var(--muted);">未找到車站</div>';
+      resEl.style.display = "block";
+      return;
+    }
+
+    resEl.innerHTML = matches.map(s => {
+      const sysLabel = SYS_LABEL[s.sys] || s.sys;
+      return `<div class="result-item" data-sid="${s.id}">
+        <span>🚉 ${escapeHtml(s.name)}${s.name_en ? " ("+escapeHtml(s.name_en)+")" : ""}</span>
+        <span class="sys">${escapeHtml(sysLabel)}</span>
+      </div>`;
+    }).join("");
+    resEl.style.display = "block";
+    resEl.querySelectorAll(".result-item[data-sid]").forEach(el => {
+      el.addEventListener("mousedown", (e) => { // mousedown 先喺 blur
+        e.preventDefault();
+        const sid = parseInt(el.dataset.sid, 10);
+        const s = state.stations.find(x => x.id === sid);
+        if (!s) return;
+        // 加入 anchor（自動 enable walking、auto pan）
+        addAnchor("station", s);
+        $("stationSearchInput").value = "";
+        resEl.style.display = "none";
+      });
+    });
   }
 
   function updateWalkingUI() {

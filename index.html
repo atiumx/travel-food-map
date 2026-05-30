@@ -173,6 +173,24 @@ body {
   display: flex; justify-content: space-between; font-size: 12px; color: var(--muted);
 }
 
+/* Station markers + autocomplete */
+.station-search-row .result-item {
+  padding: 5px 8px; cursor: pointer; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; gap:6px;
+}
+.station-search-row .result-item:hover { background: #f3f0e8; }
+.station-search-row .result-item:last-child { border-bottom: none; }
+.station-search-row .result-item .sys { font-size: 10px; color: var(--muted); }
+.station-icon {
+  background: #fff; border: 2px solid #333; border-radius: 50%;
+  width: 8px; height: 8px;
+}
+.station-icon.jr-kyushu  { border-color: #c81e1e; }
+.station-icon.jr-west    { border-color: #0072bc; }
+.station-icon.osaka-metro{ border-color: #ee7e00; }
+.station-icon.fukuoka-subway { border-color: #00794f; }
+.station-icon.kobe-subway{ border-color: #6c4a96; }
+.station-tooltip { font-size: 11px; }
+
 /* Suggestions */
 .suggestions { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
 .suggestions h3 { font-size: 13px; margin: 0 0 6px; color: var(--muted); display:flex; align-items:center; gap:6px; }
@@ -370,7 +388,15 @@ body {
             <button class="btn-sm" id="addAnchorMap">+ 地圖中心</button>
             <button class="btn-sm" id="addAnchorGeo">+ 📍 位置</button>
             <button class="btn-sm" id="addAnchorPlace">+ 地點</button>
+            <button class="btn-sm" id="addAnchorStation">+ 🚉 車站</button>
           </div>
+          <div class="station-search-row" style="position:relative;margin-top:4px;">
+            <input id="stationSearchInput" type="text" placeholder="揜車站名（例：博多／難波）" style="width:100%;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:4px;" />
+            <div id="stationSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:4px;max-height:200px;overflow-y:auto;z-index:1500;font-size:12px;"></div>
+          </div>
+          <label style="display:flex;align-items:center;gap:4px;margin-top:4px;font-size:11px;color:var(--muted);">
+            <input type="checkbox" id="showStationsToggle" /> 地圖顯示車站
+          </label>
         </div>
         <div>
           <div class="label">時間（分鐘）</div>
