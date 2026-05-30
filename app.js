@@ -669,77 +669,11 @@
     setupDetailHalfSheet();
     setupPullToRefresh();
     setupMapFabs();
-    setupFilterCollapse();
     window.addEventListener("resize", () => {
       // Re-position zoom control when crossing the breakpoint
       setupMobileZoom();
     });
   }
-
-  // ---- Mobile filter collapse: hide chip rows / panels by default,
-  //      keep search input + a toggle button; show active-filter count badge.
-  function setupFilterCollapse() {
-    if (!isMobile()) return;
-    const filters = document.querySelector(".filters");
-    const search = $("searchInput");
-    if (!filters || !search) return;
-    // Avoid double-inject on resize
-    if (document.getElementById("filterToggleBtn")) {
-      document.body.classList.add("filters-collapsed");
-      refreshFilterToggleBadge();
-      return;
-    }
-    // Build toggle row
-    const row = document.createElement("div");
-    row.className = "filter-toggle-row";
-    row.innerHTML = `
-      <button type="button" id="filterToggleBtn" class="filter-toggle-btn" aria-expanded="false" aria-controls="filters">
-        <span><span class="label">篩選</span><span class="badge" id="filterCount">0</span></span>
-        <span class="chevron" aria-hidden="true">▾</span>
-      </button>
-    `;
-    // Insert right after the search input
-    search.parentNode.insertBefore(row, search.nextSibling);
-    // Default state: collapsed
-    document.body.classList.add("filters-collapsed");
-    const btn = $("filterToggleBtn");
-    btn.addEventListener("click", () => {
-      const collapsed = document.body.classList.toggle("filters-collapsed");
-      btn.setAttribute("aria-expanded", String(!collapsed));
-    });
-    // i18n labels (best-effort, fallback Traditional Chinese)
-    refreshFilterToggleBadge();
-    // Re-count whenever any filter element changes
-    ["categoryFilter","priceFilter","openFilter","bookmarkFilter","dayFilter","sortBy"].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.addEventListener("change", refreshFilterToggleBadge);
-    });
-    // Walking toggle + facet chips also count
-    const walkChk = $("walkingToggle");
-    if (walkChk) walkChk.addEventListener("change", refreshFilterToggleBadge);
-    // Facet chips listen via delegated click on parent
-    const facets = $("facetChips");
-    if (facets) facets.addEventListener("click", () => setTimeout(refreshFilterToggleBadge, 0));
-  }
-
-  function refreshFilterToggleBadge() {
-    const btn = document.getElementById("filterToggleBtn");
-    const badge = document.getElementById("filterCount");
-    if (!btn || !badge) return;
-    let n = 0;
-    const catEl = $("categoryFilter"); if (catEl && catEl.value) n++;
-    const priceEl = $("priceFilter"); if (priceEl && priceEl.value) n++;
-    const openEl = $("openFilter"); if (openEl && openEl.value) n++;
-    const bmEl = $("bookmarkFilter"); if (bmEl && bmEl.value) n++;
-    const dayEl = $("dayFilter"); if (dayEl && dayEl.value) n++;
-    const sortEl = $("sortBy"); if (sortEl && sortEl.value && sortEl.value !== "default") n++;
-    const walkChk = $("walkingToggle"); if (walkChk && walkChk.checked) n++;
-    if (state.tagFacets && state.tagFacets.size > 0) n += state.tagFacets.size;
-    badge.textContent = String(n);
-    btn.classList.toggle("has-active", n > 0);
-  }
-  // expose for applyFilters → call after each filter change
-  window.__refreshFilterToggleBadge = refreshFilterToggleBadge;
 
   // ---- G1: Map FABs (mobile only) ----
   let _userLocMarker = null;
