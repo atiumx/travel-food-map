@@ -672,6 +672,7 @@ body {
       <select id="tripAreaSelect"></select>
       <input id="searchInput" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="搜尋名稱／標籤／備註" />
       <div class="filter-row">
+        <select id="cuisineGroupFilter"><option value="">所有菜系</option></select>
         <select id="categoryFilter"><option value="">所有分類</option></select>
         <select id="priceFilter">
           <option value="">所有價位</option>
@@ -863,9 +864,15 @@ body {
     <input id="pmName" type="text" />
     <div class="row">
       <div>
-        <label>分類</label>
+        <label>菜系</label>
+        <select id="pmCuisineGroup"></select>
+      </div>
+      <div>
+        <label>分類（子類）</label>
         <select id="pmCategory"></select>
       </div>
+    </div>
+    <div class="row">
       <div>
         <label>價位</label>
         <select id="pmPrice">

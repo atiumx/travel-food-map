@@ -11,18 +11,41 @@
   const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
   // 預設分類選項（同 PROJECT_PLAN.md 一致）
-  const CATEGORIES = [
-    "拉麵","壽司","燒肉","燒鳥","天婦羅","居酒屋",
-    "咖啡","甜品","博多料理","烏冬","丼飯","麵包",
-    "住宿","景點","其他"
-  ];
+  // G2: cuisine_group → display label + emoji + sub-categories
+  const CUISINE_GROUPS = {
+    japanese:     { label: "日本料理",   emoji: "🍱", subs: ["拉麵","壽司","燒肉","燒鳥","天婦羅","居酒屋","丼飯","烏冬","蕎麥","鰻魚","和菓子","喫茶店","博多料理"] },
+    asian:        { label: "亞洲",       emoji: "🥢", subs: ["中餐","台式","韓式","泰式","越南","印度","東南亞","港式","粵菜","小籠包","夜市小食"] },
+    western:      { label: "西餐",       emoji: "🍝", subs: ["意式","法式","美式","Steakhouse","Bistro","Brunch","Pizza","Burger"] },
+    cafe_dessert: { label: "咖啡甜品",   emoji: "☕", subs: ["咖啡","Specialty Coffee","甜品","麵包","Bakery","Gelato","雪糕","蛋糕","下午茶"] },
+    bar:          { label: "酒吧",       emoji: "🍶", subs: ["清酒","Sake","Cocktail","Wine","Craft Beer","啤酒"] },
+    fast:         { label: "快食",       emoji: "🍙", subs: ["便利店","Fast Food","Food Court","快餐","美食廣場"] },
+    attraction:   { label: "景點",       emoji: "📷", subs: ["景點","觀光","博物館","寺廟","神社","公園"] },
+    lodging:      { label: "住宿",       emoji: "🏨", subs: ["住宿","酒店","旅館","民宿","Hostel"] },
+    other:        { label: "其他",       emoji: "🍽️", subs: ["其他"] },
+  };
+  // Flat CATEGORIES kept for legacy modal sub-type field (free-text style)
+  const CATEGORIES = Object.values(CUISINE_GROUPS).flatMap(g => g.subs);
 
-  // 分類 → emoji icon
+  // 分類 → emoji icon (legacy mapping for sub-categories on markers)
   const CATEGORY_EMOJI = {
     "拉麵": "🍜", "壽司": "🍣", "燒肉": "🥩", "燒鳥": "🍗",
     "天婦羅": "🍤", "居酒屋": "🍶", "咖啡": "☕", "甜品": "🍰",
     "博多料理": "🍲", "烏冬": "🍜", "丼飯": "🍚", "麵包": "🥐",
-    "住宿": "🏨", "景點": "📷", "其他": "🍽️"
+    "住宿": "🏨", "景點": "📷", "其他": "🍽️",
+    "小籠包": "🥟", "夜市小食": "🌮", "中餐": "🥡", "台式": "🧋",
+    "韓式": "🍲", "泰式": "🍛", "越南": "🍜", "印度": "🍛",
+    "港式": "🍤", "粵菜": "🥢",
+    "意式": "🍝", "法式": "🥐", "美式": "🍔", "Steakhouse": "🥩",
+    "Bistro": "🍷", "Brunch": "🍳", "Pizza": "🍕", "Burger": "🍔",
+    "Specialty Coffee": "☕", "Bakery": "🥖", "Gelato": "🍨",
+    "雪糕": "🍦", "蛋糕": "🎂", "下午茶": "🫖",
+    "清酒": "🍶", "Sake": "🍶", "Cocktail": "🍸", "Wine": "🍷",
+    "Craft Beer": "🍺", "啤酒": "🍺",
+    "便利店": "🏪", "Fast Food": "🍟", "Food Court": "🍱", "快餐": "🍱",
+    "美食廣場": "🍱",
+    "觀光": "📷", "博物館": "🏛️", "寺廟": "🛕", "神社": "⛩️", "公園": "🌳",
+    "酒店": "🏨", "旅館": "🏨", "民宿": "🏡", "Hostel": "🛏️",
+    "蕎麥": "🍝", "鰻魚": "🍣", "和菓子": "🍡", "喫茶店": "☕"
   };
   const DEFAULT_EMOJI = "🍽️";
 
@@ -542,9 +565,45 @@
   }
 
   function populateCategorySelects() {
-    for (const c of CATEGORIES) {
-      const o1 = new Option(c, c); categoryFilter.appendChild(o1);
-      const o2 = new Option(c, c); $("pmCategory").appendChild(o2);
+    // G2: cuisine_group filter (top-level)
+    const cgFilter = $("cuisineGroupFilter");
+    if (cgFilter && cgFilter.options.length <= 1) {
+      for (const [key, g] of Object.entries(CUISINE_GROUPS)) {
+        cgFilter.appendChild(new Option(`${g.emoji} ${g.label}`, key));
+      }
+    }
+    // G2: cuisine_group in modal
+    const pmCG = $("pmCuisineGroup");
+    if (pmCG && pmCG.options.length === 0) {
+      pmCG.appendChild(new Option("—", ""));
+      for (const [key, g] of Object.entries(CUISINE_GROUPS)) {
+        pmCG.appendChild(new Option(`${g.emoji} ${g.label}`, key));
+      }
+      // Auto-narrow sub-category when group changes
+      pmCG.addEventListener("change", () => {
+        repopulateCategoryOptions(pmCG.value);
+      });
+    }
+    repopulateCategoryOptions(""); // initial: all
+  }
+
+  function repopulateCategoryOptions(groupKey) {
+    const subs = groupKey && CUISINE_GROUPS[groupKey]
+      ? CUISINE_GROUPS[groupKey].subs
+      : CATEGORIES;
+    // filter dropdown
+    const cur1 = categoryFilter.value;
+    categoryFilter.innerHTML = '<option value="">所有分類</option>';
+    for (const c of subs) categoryFilter.appendChild(new Option(c, c));
+    if (subs.includes(cur1)) categoryFilter.value = cur1;
+    // modal
+    const pmCat = $("pmCategory");
+    if (pmCat) {
+      const cur2 = pmCat.value;
+      pmCat.innerHTML = "";
+      pmCat.appendChild(new Option("—", ""));
+      for (const c of subs) pmCat.appendChild(new Option(c, c));
+      if (subs.includes(cur2)) pmCat.value = cur2;
     }
   }
 
@@ -563,6 +622,14 @@
     searchInput.addEventListener("input", applyFilters);
     categoryFilter.addEventListener("change", applyFilters);
     priceFilter.addEventListener("change", applyFilters);
+    const cgFilter = $("cuisineGroupFilter");
+    if (cgFilter) {
+      cgFilter.addEventListener("change", () => {
+        // Narrow category sub-list to group's subs
+        repopulateCategoryOptions(cgFilter.value);
+        applyFilters();
+      });
+    }
 
     $("openFilter").addEventListener("change", (e) => {
       state.openFilter = e.target.value;
@@ -824,7 +891,9 @@
       : [];
     const radiusM = validAnchors.length > 0 ? w.minutes * WALK_METRES_PER_MIN : null;
 
+    const cgVal = ($("cuisineGroupFilter") && $("cuisineGroupFilter").value) || "";
     state.filtered = state.places.filter(p => {
+      if (cgVal && p.cuisine_group !== cgVal) return false;
       if (cat && p.category !== cat) return false;
       if (price && p.price_level !== price) return false;
       if (q) {
@@ -1824,6 +1893,7 @@
     const dayTagRaw = $("pmDayTag").value;
     const place = {
       name,
+      cuisine_group: $("pmCuisineGroup").value || "other",
       category: $("pmCategory").value || null,
       region: $("pmRegion").value.trim() || null,
       price_level: $("pmPrice").value || null,
