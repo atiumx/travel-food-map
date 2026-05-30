@@ -894,18 +894,23 @@ body {
   <aside class="sidebar" id="sidebar">
     <div class="sheet-handle" id="sheetHandle" aria-label="拖拉調整面板高度"></div>
     <header>
-      <h1>旅行美食地圖</h1>
-      <span id="roleBadge" class="role-badge guest">訪客</span>
+      <h1 data-i18n="app.title">旅行美食地圖</h1>
+      <span id="roleBadge" class="role-badge guest" data-i18n="role.guest">訪客</span>
+      <select id="langSwitch" title="Language" aria-label="Language" style="margin-left:6px;padding:3px 6px;font-size:11px;border:1px solid #d8d2c7;border-radius:4px;background:#fff;">
+        <option value="zh-TW">繁中</option>
+        <option value="en">EN</option>
+        <option value="ja">日本語</option>
+      </select>
     </header>
 
     <div class="filters">
       <select id="tripAreaSelect"></select>
-      <input id="searchInput" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="搜尋名稱／標籤／備註" />
+      <input id="searchInput" type="search" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-i18n-placeholder="search.placeholder" placeholder="搜尋名稱／標籤／備註" />
       <div class="filter-row">
-        <select id="cuisineGroupFilter"><option value="">所有菜系</option></select>
-        <select id="categoryFilter"><option value="">所有分類</option></select>
+        <select id="cuisineGroupFilter"><option value="" data-i18n="filter.all_cuisine">所有菜系</option></select>
+        <select id="categoryFilter"><option value="" data-i18n="filter.all_category">所有分類</option></select>
         <select id="priceFilter">
-          <option value="">所有價位</option>
+          <option value="" data-i18n="filter.all_price">所有價位</option>
           <option value="¥">¥</option>
           <option value="¥¥">¥¥</option>
           <option value="¥¥¥">¥¥¥</option>
@@ -913,10 +918,10 @@ body {
         </select>
       </div>
       <div class="filter-row">
-        <select id="openFilter" title="營業時間篩選">
-          <option value="">營業時間：所有</option>
-          <option value="now">而家開緊</option>
-          <option value="today">今日有開</option>
+        <select id="openFilter" data-i18n-title="filter.hours_title" title="營業時間篩選">
+          <option value="" data-i18n="filter.hours_all">營業時間：所有</option>
+          <option value="now" data-i18n="filter.hours_now">而家開緊</option>
+          <option value="today" data-i18n="filter.hours_today">今日有開</option>
           <option value="weekday-0">星期日有開</option>
           <option value="weekday-1">星期一有開</option>
           <option value="weekday-2">星期二有開</option>
@@ -925,15 +930,15 @@ body {
           <option value="weekday-5">星期五有開</option>
           <option value="weekday-6">星期六有開</option>
         </select>
-        <select id="bookmarkFilter" title="收藏狀態篩選">
-          <option value="">收藏：所有</option>
-          <option value="wishlist">⭐ 想去</option>
-          <option value="been">✅ 已去</option>
-          <option value="favorite">❤️ 最愛</option>
-          <option value="none">— 未收藏</option>
+        <select id="bookmarkFilter" data-i18n-title="filter.bookmark_title" title="收藏狀態篩選">
+          <option value="" data-i18n="filter.bookmark_all">收藏：所有</option>
+          <option value="wishlist" data-i18n="filter.bookmark_wish">⭐ 想去</option>
+          <option value="been" data-i18n="filter.bookmark_been">✅ 已去</option>
+          <option value="favorite" data-i18n="filter.bookmark_fav">❤️ 最愛</option>
+          <option value="none" data-i18n="filter.bookmark_none">— 未收藏</option>
         </select>
-        <select id="dayFilter" title="日子篩選">
-          <option value="">日子：所有</option>
+        <select id="dayFilter" data-i18n-title="filter.day_title" title="日子篩選">
+          <option value="" data-i18n="filter.day_all">日子：所有</option>
           <option value="1">Day 1</option>
           <option value="2">Day 2</option>
           <option value="3">Day 3</option>
@@ -941,7 +946,7 @@ body {
           <option value="5">Day 5</option>
           <option value="6">Day 6</option>
           <option value="7">Day 7</option>
-          <option value="none">— 未分配</option>
+          <option value="none" data-i18n="filter.day_none">— 未分配</option>
         </select>
       </div>
       <!-- I2: Facet tag chips (quality signals) -->
@@ -949,16 +954,16 @@ body {
       <!-- I3: Day timeline strip (auto-rendered from places.day_tag) -->
       <div class="day-strip" id="dayStrip" aria-label="行程 Day 篩選"></div>
       <div class="filter-row">
-        <select id="sortBy" title="排序">
-          <option value="default">排序：預設</option>
-          <option value="distance">距離（步行圈）</option>
-          <option value="rating">評分（高→低）</option>
-          <option value="recent">最新加入</option>
-          <option value="name">名稱（A→Z）</option>
-          <option value="random">隨機</option>
+        <select id="sortBy" data-i18n-title="filter.sort_title" title="排序">
+          <option value="default" data-i18n="sort.default">排序：預設</option>
+          <option value="distance" data-i18n="sort.distance">距離（步行圈）</option>
+          <option value="rating" data-i18n="sort.rating">評分（高→低）</option>
+          <option value="recent" data-i18n="sort.recent">最新加入</option>
+          <option value="name" data-i18n="sort.name">名稱（A→Z）</option>
+          <option value="random" data-i18n="sort.random">隨機</option>
         </select>
-        <button class="btn" id="hereBtn" title="用我而家位置做起點" style="flex:0 0 auto;padding:7px 10px;">📍 我而家</button>
-        <button class="btn" id="shareBtn" title="複製連結（含篩選）" style="flex:0 0 auto;padding:7px 10px;">🔗</button>
+        <button class="btn" id="hereBtn" data-i18n-title="btn.here_title" data-i18n="btn.here" title="用我而家位置做起點" style="flex:0 0 auto;padding:7px 10px;">📍 我而家</button>
+        <button class="btn" id="shareBtn" data-i18n-title="btn.share_title" title="複製連結（含篩選）" style="flex:0 0 auto;padding:7px 10px;">🔗</button>
       </div>
     </div>
 
