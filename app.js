@@ -1129,13 +1129,78 @@
     if (el) el.classList.toggle("marker-hover", !!on);
   }
   function scrollListItemIntoView(placeId) {
-    const el = placeListEl && placeListEl.querySelector(`.place-item[data-place-id="${placeId}"]`);
+    let el = placeListEl && placeListEl.querySelector(`.place-item[data-place-id="${placeId}"]`);
+    // Perf-B: item may not be rendered yet under chunked virtualization —
+    // force-render up to and including the target item.
+    if (!el && Array.isArray(state.filtered)) {
+      const idx = state.filtered.findIndex(p => p.id === placeId);
+      if (idx >= 0) _ensureListRendered(idx);
+      el = placeListEl.querySelector(`.place-item[data-place-id="${placeId}"]`);
+    }
     if (el && typeof el.scrollIntoView === "function") {
       try { el.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (_) { el.scrollIntoView(); }
     }
   }
 
+  // Perf-B: force-render list items up to targetIdx (inclusive), used by
+  // scrollListItemIntoView when user clicks a marker whose list row is still virtualized.
+  function _ensureListRendered(targetIdx) {
+    if (!placeListEl || !Array.isArray(state.filtered)) return;
+    const sentinel = placeListEl.querySelector(".list-sentinel");
+    if (!sentinel) return; // already fully rendered
+    const rendered = placeListEl.querySelectorAll(".place-item").length;
+    if (targetIdx < rendered) return;
+    const now = new Date();
+    const frag = document.createDocumentFragment();
+    for (let i = rendered; i <= targetIdx && i < state.filtered.length; i++) {
+      frag.appendChild(_buildPlaceItem(state.filtered[i], now));
+    }
+    placeListEl.insertBefore(frag, sentinel);
+  }
+
+  // Perf-B: list virtualization via incremental rendering
+  // - First chunk = 60 items (covers ~5 viewport heights on mobile)
+  // - IntersectionObserver on bottom sentinel loads next chunks of 60
+  // - This keeps initial DOM under ~60 nodes regardless of state.filtered.length
+  const LIST_CHUNK_SIZE = 60;
+  let _listObserver = null;
+  let _listRenderToken = 0;
+
+  function _buildPlaceItem(p, now) {
+    const div = document.createElement("div");
+    div.className = "place-item" + (p.id === state.selectedPlaceId ? " active" : "");
+    div.dataset.placeId = p.id;
+    const metaParts = [p.category, p.region, p.price_level].filter(Boolean);
+    if (p._distance_m != null) {
+      const mins = Math.max(1, Math.round(p._distance_m / WALK_METRES_PER_MIN));
+      metaParts.push(`步行 ${mins} 分 (${Math.round(p._distance_m)}m)`);
+    }
+    const meta = metaParts.join(" · ");
+    const tags = (p.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("");
+    const bm = getBookmark(p.id);
+    const bmIcon = bm ? `<span class="bookmark-icon">${BOOKMARK_ICON[bm]}</span>` : "";
+    const openNow = isOpenAt(p, now);
+    let openBadge = "";
+    if (openNow === true) openBadge = '<span class="badge-open open">營業中</span>';
+    else if (openNow === false) openBadge = '<span class="badge-open closed">休息</span>';
+    const dayBadgeHtml = p.day_tag != null
+      ? `<span class="badge-day">Day ${p.day_tag}</span>` : "";
+    div.innerHTML = `
+      <div class="name">${bmIcon}${escapeHtml(p.name)}${openBadge}${dayBadgeHtml}</div>
+      <div class="meta">${escapeHtml(meta)}</div>
+      ${tags ? `<div class="tags">${tags}</div>` : ""}
+    `;
+    div.addEventListener("click", () => openPlaceDetail(p.id));
+    div.addEventListener("mouseenter", () => highlightMarker(p.id, true));
+    div.addEventListener("mouseleave", () => highlightMarker(p.id, false));
+    return div;
+  }
+
   function renderList() {
+    // Invalidate any in-flight chunked render
+    _listRenderToken++;
+    if (_listObserver) { _listObserver.disconnect(); _listObserver = null; }
+
     if (state.filtered.length === 0) {
       const msg = state.walking.enabled
         ? "呢個步行圈內未有地點"
@@ -1143,40 +1208,46 @@
       placeListEl.innerHTML = `<div class="list-empty">${msg}</div>`;
       return;
     }
+
     placeListEl.innerHTML = "";
     const now = new Date();
-    for (const p of state.filtered) {
-      const div = document.createElement("div");
-      div.className = "place-item" + (p.id === state.selectedPlaceId ? " active" : "");
-      // H3: data-id for marker↔list sync
-      div.dataset.placeId = p.id;
-      const metaParts = [p.category, p.region, p.price_level].filter(Boolean);
-      if (p._distance_m != null) {
-        const mins = Math.max(1, Math.round(p._distance_m / WALK_METRES_PER_MIN));
-        metaParts.push(`步行 ${mins} 分 (${Math.round(p._distance_m)}m)`);
-      }
-      const meta = metaParts.join(" · ");
-      const tags = (p.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join("");
-      const bm = getBookmark(p.id);
-      const bmIcon = bm ? `<span class="bookmark-icon">${BOOKMARK_ICON[bm]}</span>` : "";
-      // 營業狀態 badge
-      const openNow = isOpenAt(p, now);
-      let openBadge = "";
-      if (openNow === true) openBadge = '<span class="badge-open open">營業中</span>';
-      else if (openNow === false) openBadge = '<span class="badge-open closed">休息</span>';
-      const dayBadgeHtml = p.day_tag != null
-        ? `<span class="badge-day">Day ${p.day_tag}</span>` : "";
-      div.innerHTML = `
-        <div class="name">${bmIcon}${escapeHtml(p.name)}${openBadge}${dayBadgeHtml}</div>
-        <div class="meta">${escapeHtml(meta)}</div>
-        ${tags ? `<div class="tags">${tags}</div>` : ""}
-      `;
-      div.addEventListener("click", () => openPlaceDetail(p.id));
-      // H3: list hover → highlight marker (desktop only)
-      div.addEventListener("mouseenter", () => highlightMarker(p.id, true));
-      div.addEventListener("mouseleave", () => highlightMarker(p.id, false));
-      placeListEl.appendChild(div);
+    const total = state.filtered.length;
+    const myToken = _listRenderToken;
+
+    // Render first chunk
+    const firstChunkEnd = Math.min(LIST_CHUNK_SIZE, total);
+    const frag1 = document.createDocumentFragment();
+    for (let i = 0; i < firstChunkEnd; i++) {
+      frag1.appendChild(_buildPlaceItem(state.filtered[i], now));
     }
+    placeListEl.appendChild(frag1);
+
+    if (firstChunkEnd >= total) return;
+
+    // Set up sentinel + IntersectionObserver for subsequent chunks
+    const sentinel = document.createElement("div");
+    sentinel.className = "list-sentinel";
+    sentinel.style.cssText = "height:1px;";
+    placeListEl.appendChild(sentinel);
+
+    let nextIdx = firstChunkEnd;
+    _listObserver = new IntersectionObserver((entries) => {
+      if (myToken !== _listRenderToken) return; // stale render
+      if (!entries[0].isIntersecting) return;
+      const chunkEnd = Math.min(nextIdx + LIST_CHUNK_SIZE, total);
+      const frag = document.createDocumentFragment();
+      for (let i = nextIdx; i < chunkEnd; i++) {
+        frag.appendChild(_buildPlaceItem(state.filtered[i], now));
+      }
+      placeListEl.insertBefore(frag, sentinel);
+      nextIdx = chunkEnd;
+      if (nextIdx >= total) {
+        _listObserver.disconnect();
+        _listObserver = null;
+        sentinel.remove();
+      }
+    }, { root: placeListEl, rootMargin: "400px" });
+    _listObserver.observe(sentinel);
   }
 
   // Perf-A: marker signature cache — only rebuild DivIcon if visual state changes
