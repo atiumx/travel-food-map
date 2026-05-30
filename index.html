@@ -295,7 +295,7 @@ body {
 .day-pill.day-none.active { background: #6b6256; border-color: #524a3f; color: #fff; }
 
 .list {
-  flex: 1; overflow-y: auto; padding: 4px 0;
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 0;
 }
 .list-empty {
   padding: 24px 16px; color: var(--muted); font-size: 13px; text-align: center;
@@ -478,6 +478,9 @@ body {
 .detail-body { /* desktop: no special flex */ }
 .detail h2 { margin: 0 0 6px; font-size: 16px; }
 .detail .meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+/* Base (desktop): filter-toggle-row never shown */
+.filter-toggle-row { display: none; }
+
 /* I1: hero photo (real img or CSS gradient placeholder) */
 .detail-hero {
   width: calc(100% + 32px); margin: -14px -16px 10px;
@@ -896,6 +899,37 @@ body {
     border-radius: 8px;
   }
   .filters { padding: 8px 14px; gap: 10px; }
+
+  /* Filter collapse toggle (mobile only). Default: hidden via base rule below;
+     this media query makes it visible at mobile widths. */
+  .filter-toggle-row {
+    display: flex; align-items: center; justify-content: flex-start;
+    margin: 0 -14px; padding: 4px 14px 0;
+  }
+  .filter-toggle-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--chip-bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 16px;
+    padding: 5px 12px; font-size: 12px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .filter-toggle-btn .badge {
+    background: var(--accent); color: #fff;
+    border-radius: 10px; padding: 1px 6px; font-size: 11px; font-weight: 700;
+    min-width: 16px; text-align: center;
+  }
+  .filter-toggle-btn .chev {
+    font-size: 12px; opacity: 0.7;
+  }
+  /* When collapsed, hide all expandable filter UI inside .filters and below */
+  body.filters-collapsed .filters .filter-row,
+  body.filters-collapsed .filters .facet-row,
+  body.filters-collapsed .filters .sort-row,
+  body.filters-collapsed .walking-panel,
+  body.filters-collapsed #budgetPanel,
+  body.filters-collapsed .day-strip {
+    display: none !important;
+  }
 
   /* ---- F2-6 + G1-1: horizontal scrolling filter chip row, fixed widths ---- */
   .filter-row {

@@ -669,10 +669,63 @@
     setupDetailHalfSheet();
     setupPullToRefresh();
     setupMapFabs();
+    setupFilterCollapse();
     window.addEventListener("resize", () => {
       // Re-position zoom control when crossing the breakpoint
       setupMobileZoom();
     });
+  }
+
+  // Mobile filter collapse: inject [篩選 ▾] toggle inside .filters container.
+  // body.filters-collapsed hides filter-row/facet-row/day-strip/walking-panel/budgetPanel/sort-row.
+  // List remains visible because .list has flex:1 + min-height:0.
+  function setupFilterCollapse() {
+    if (!isMobile()) return;
+    if (document.getElementById("filterToggleRow")) return; // idempotent
+    const filters = document.querySelector(".filters");
+    const search = document.getElementById("searchInput");
+    if (!filters || !search) return;
+    const row = document.createElement("div");
+    row.id = "filterToggleRow";
+    row.className = "filter-toggle-row";
+    row.innerHTML = `<button type="button" id="filterToggleBtn" class="filter-toggle-btn" aria-expanded="false">
+      <span class="label">篩選</span>
+      <span class="badge" id="filterToggleBadge" hidden>0</span>
+      <span class="chev">▾</span>
+    </button>`;
+    // Insert AFTER searchInput, still inside .filters container
+    if (search.nextSibling) filters.insertBefore(row, search.nextSibling);
+    else filters.appendChild(row);
+    // Default collapsed
+    document.body.classList.add("filters-collapsed");
+    const btn = row.querySelector("#filterToggleBtn");
+    btn.addEventListener("click", () => {
+      const collapsed = document.body.classList.toggle("filters-collapsed");
+      btn.setAttribute("aria-expanded", String(!collapsed));
+      btn.querySelector(".chev").textContent = collapsed ? "▾" : "▴";
+      haptic(8);
+    });
+    refreshFilterToggleBadge();
+  }
+
+  function refreshFilterToggleBadge() {
+    const badge = document.getElementById("filterToggleBadge");
+    if (!badge) return;
+    let n = 0;
+    if (categoryFilter && categoryFilter.value) n++;
+    if (priceFilter && priceFilter.value) n++;
+    const hf = document.getElementById("hoursFilter");
+    if (hf && hf.value) n++;
+    const bf = document.getElementById("bookmarkFilter");
+    if (bf && bf.value) n++;
+    const df = document.getElementById("dayFilter");
+    if (df && df.value) n++;
+    const sf = document.getElementById("sortFilter");
+    if (sf && sf.value && sf.value !== "default") n++;
+    if (state.walking && state.walking.enabled) n++;
+    if (state.facetFilter) n++;
+    if (n > 0) { badge.hidden = false; badge.textContent = String(n); }
+    else       { badge.hidden = true; }
   }
 
   // ---- G1: Map FABs (mobile only) ----
@@ -1667,6 +1720,7 @@
     renderWalkingCircles();
     renderHeatLayer();
     renderBudgetPanel();
+    refreshFilterToggleBadge();
   }
 
   function applySort(hasDistance) {
