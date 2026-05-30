@@ -106,6 +106,11 @@ body {
 .badge-open.open { background: #d6ead7; color: #2f6f3a; }
 .badge-open.closed { background: #f1d9d2; color: var(--accent); }
 .badge-open.unknown { background: #eceae3; color: var(--muted); }
+.badge-day {
+  display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 3px;
+  margin-left: 4px; font-weight: 600;
+  background: #1976d2; color: #fff;
+}
 .place-item .bookmark-icon {
   font-size: 13px; margin-right: 3px;
 }
@@ -131,6 +136,22 @@ body {
   cursor: pointer;
 }
 .emoji-marker-inner span { transform: rotate(45deg); display: block; line-height: 1; }
+.emoji-marker { position: relative; }
+.day-badge {
+  position: absolute;
+  right: -3px; bottom: -3px;
+  background: #1976d2;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 8px;
+  border: 1.5px solid #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  z-index: 1;
+  pointer-events: none;
+}
 .emoji-marker-inner.bookmark-favorite { border-color: #c87f0a; }
 .emoji-marker-inner.bookmark-wishlist { border-color: #2c6fb8; }
 .emoji-marker-inner.bookmark-been { border-color: #3a8a3a; opacity: 0.6; }
@@ -398,6 +419,17 @@ body {
           <option value="favorite">❤️ 最愛</option>
           <option value="none">— 未收藏</option>
         </select>
+        <select id="dayFilter" title="日子篩選">
+          <option value="">日子：所有</option>
+          <option value="1">Day 1</option>
+          <option value="2">Day 2</option>
+          <option value="3">Day 3</option>
+          <option value="4">Day 4</option>
+          <option value="5">Day 5</option>
+          <option value="6">Day 6</option>
+          <option value="7">Day 7</option>
+          <option value="none">— 未分配</option>
+        </select>
       </div>
       <div class="filter-row">
         <select id="sortBy" title="排序">
@@ -428,6 +460,11 @@ body {
             <button class="btn-sm" id="addAnchorPlace">+ 地點</button>
             <button class="btn-sm" id="addAnchorStation">+ 🚉 車站</button>
           </div>
+          <div class="anchor-tools-row" style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;">
+            <button class="btn-sm" id="planRouteBtn" title="用 anchor 順序規劃最短步行路線" disabled style="flex:1;min-width:90px;">🚶 規劃路線</button>
+            <button class="btn-sm" id="clearAnchorsBtn" title="清除全部 anchor" disabled style="min-width:60px;">🗑 清除</button>
+          </div>
+          <div id="routePanel" style="display:none;margin-top:6px;padding:6px;background:#fafafa;border:1px solid var(--border);border-radius:4px;font-size:11px;"></div>
           <div class="station-search-row" style="position:relative;margin-top:4px;">
             <input id="stationSearchInput" type="text" placeholder="揜車站名（例：博多／難波）" style="width:100%;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:4px;" />
             <div id="stationSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:4px;max-height:200px;overflow-y:auto;z-index:1500;font-size:12px;"></div>
@@ -467,6 +504,18 @@ body {
   <button class="close-btn" id="detailClose">×</button>
   <h2 id="detailName"></h2>
   <div class="meta" id="detailMeta"></div>
+  <div id="detailOwnerDay" style="display:none;font-size:12px;margin:4px 0;color:var(--muted);">
+    日子：<select style="padding:2px 4px;font-size:12px;">
+      <option value="">未分配</option>
+      <option value="1">Day 1</option>
+      <option value="2">Day 2</option>
+      <option value="3">Day 3</option>
+      <option value="4">Day 4</option>
+      <option value="5">Day 5</option>
+      <option value="6">Day 6</option>
+      <option value="7">Day 7</option>
+    </select>
+  </div>
   <div id="detailHours" style="font-size:12px;margin:4px 0;"></div>
   <div id="detailAddress" style="font-size:12px;color:var(--muted);margin:4px 0;"></div>
   <div id="detailBookmarks" style="display:flex;gap:6px;margin:8px 0;">
@@ -554,6 +603,17 @@ body {
     </div>
     <label>標籤（用逗號分隔）</label>
     <input id="pmTags" type="text" placeholder="例如：豚骨,辛口,深夜" />
+    <label>第幾日（選填）</label>
+    <select id="pmDayTag">
+      <option value="">未分配</option>
+      <option value="1">Day 1</option>
+      <option value="2">Day 2</option>
+      <option value="3">Day 3</option>
+      <option value="4">Day 4</option>
+      <option value="5">Day 5</option>
+      <option value="6">Day 6</option>
+      <option value="7">Day 7</option>
+    </select>
     <label>備註</label>
     <textarea id="pmNote"></textarea>
     <label>Google Maps 連結</label>

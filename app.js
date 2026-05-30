@@ -73,6 +73,7 @@
     sortBy: "default",
     openFilter: "",           // "" | "now" | "today" | "weekday-N"
     bookmarkFilter: "",       // "" | "wishlist" | "been" | "favorite" | "none"
+    dayFilter: "",            // "" | "1"."7" | "none"
 
     // 步行圈（多 anchor）
     walking: {
@@ -130,6 +131,10 @@
     await loadTripAreas();
     // URL state 要喺 tripAreas load 完先 apply（要識 slug）
     restoreStateFromURL();
+    // E1: restore persisted anchors for current area
+    restoreAnchorsForCurrentArea();
+    renderAnchorList();
+    updateWalkingUI();
     await loadPlacesForCurrentArea();
     // restoreStateFromURL 已 set filter values，但要 applyFilters 一次
     applyFilters();
@@ -190,6 +195,7 @@
     const sort = params.get("sort");   if (sort) { $("sortBy").value = sort; state.sortBy = sort; }
     const open = params.get("open");   if (open) { $("openFilter").value = open; state.openFilter = open; }
     const bm = params.get("bm");       if (bm) { $("bookmarkFilter").value = bm; state.bookmarkFilter = bm; }
+    const day = params.get("day");     if (day) { $("dayFilter").value = day; state.dayFilter = day; }
     // 步行圈 state
     const walk = params.get("walk");
     if (walk) {
@@ -210,6 +216,7 @@
     if (state.sortBy && state.sortBy !== "default") params.set("sort", state.sortBy);
     if (state.openFilter)         params.set("open", state.openFilter);
     if (state.bookmarkFilter)     params.set("bm", state.bookmarkFilter);
+    if (state.dayFilter)          params.set("day", state.dayFilter);
     if (state.walking.enabled)    params.set("walk", state.walking.minutes);
     const url = `${location.origin}${location.pathname}?${params.toString()}`;
     return url;
@@ -233,6 +240,12 @@
   function bindEvents() {
     tripAreaSelect.addEventListener("change", async () => {
       state.currentTripAreaSlug = tripAreaSelect.value;
+      // Switch trip area → swap anchors to new area's persisted set
+      state.walking.anchors = [];
+      hideRoutePanel();
+      restoreAnchorsForCurrentArea();
+      renderAnchorList();
+      updateWalkingUI();
       await loadPlacesForCurrentArea();
       if (state.showStations) renderStationMarkers();
     });
@@ -246,6 +259,10 @@
     });
     $("bookmarkFilter").addEventListener("change", (e) => {
       state.bookmarkFilter = e.target.value;
+      applyFilters();
+    });
+    $("dayFilter").addEventListener("change", (e) => {
+      state.dayFilter = e.target.value;
       applyFilters();
     });
     $("sortBy").addEventListener("change", (e) => {
@@ -319,6 +336,11 @@
     $("addAnchorGeo").addEventListener("click", () => addAnchor("geo"));
     $("addAnchorPlace").addEventListener("click", () => addAnchor("place"));
     $("addAnchorStation").addEventListener("click", () => addAnchor("station"));
+    $("clearAnchorsBtn").addEventListener("click", () => {
+      if (state.walking.anchors.length === 0) return;
+      if (confirm(`清除 ${state.walking.anchors.length} 個 anchor？`)) clearAllAnchors();
+    });
+    $("planRouteBtn").addEventListener("click", () => planWalkingRoute());
 
     // 車站 search autocomplete
     $("stationSearchInput").addEventListener("input", handleStationSearchInput);
@@ -342,6 +364,7 @@
       for (const a of mapAnchors) { a.lat = c.lat; a.lng = c.lng; }
       renderAnchorList();
       updateWalkingUI();
+      saveAnchorsToStorage();
       applyFilters();
     });
 
@@ -528,6 +551,15 @@
         return b === state.bookmarkFilter;
       });
     }
+    // E2: Day filter
+    if (state.dayFilter) {
+      if (state.dayFilter === "none") {
+        state.filtered = state.filtered.filter(p => p.day_tag == null);
+      } else {
+        const dn = parseInt(state.dayFilter, 10);
+        state.filtered = state.filtered.filter(p => p.day_tag === dn);
+      }
+    }
 
     // Sorting
     applySort(radiusM != null);
@@ -651,8 +683,10 @@
       let openBadge = "";
       if (openNow === true) openBadge = '<span class="badge-open open">營業中</span>';
       else if (openNow === false) openBadge = '<span class="badge-open closed">休息</span>';
+      const dayBadgeHtml = p.day_tag != null
+        ? `<span class="badge-day">Day ${p.day_tag}</span>` : "";
       div.innerHTML = `
-        <div class="name">${bmIcon}${escapeHtml(p.name)}${openBadge}</div>
+        <div class="name">${bmIcon}${escapeHtml(p.name)}${openBadge}${dayBadgeHtml}</div>
         <div class="meta">${escapeHtml(meta)}</div>
         ${tags ? `<div class="tags">${tags}</div>` : ""}
       `;
@@ -669,9 +703,13 @@
       const emoji = CATEGORY_EMOJI[p.category] || DEFAULT_EMOJI;
       const bm = getBookmark(p.id);
       const bmClass = bm ? ` bookmark-${bm}` : "";
+      // E2: day badge (small digit bottom-right)
+      const dayBadge = (p.day_tag != null)
+        ? `<span class="day-badge">${p.day_tag}</span>`
+        : "";
       const icon = L.divIcon({
         className: "emoji-marker",
-        html: `<div class="emoji-marker-inner${bmClass}"><span>${emoji}</span></div>`,
+        html: `<div class="emoji-marker-inner${bmClass}"><span>${emoji}</span>${dayBadge}</div>`,
         iconSize: [32, 32],
         iconAnchor: [16, 32],
         popupAnchor: [0, -32],
@@ -696,6 +734,250 @@
               Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
               Math.sin(dLng/2) ** 2;
     return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
+  // -----------------------------------------------------------
+  // Anchor persistence (E1) — localStorage per trip area
+  // -----------------------------------------------------------
+  function anchorStorageKey(slug) {
+    return `tfm:anchors:${slug || "default"}`;
+  }
+  function saveAnchorsToStorage() {
+    if (!state.currentTripAreaSlug) return;
+    // Persist only stable anchors: map / place / station. Skip geo (transient).
+    const persist = state.walking.anchors
+      .filter(a => a.mode !== "geo" && a.lat != null && a.lng != null)
+      .map(a => ({
+        mode: a.mode, lat: a.lat, lng: a.lng,
+        label: a.label, color: a.color,
+        placeId: a.placeId || null, stationId: a.stationId || null,
+      }));
+    try {
+      const k = anchorStorageKey(state.currentTripAreaSlug);
+      if (persist.length === 0) localStorage.removeItem(k);
+      else localStorage.setItem(k, JSON.stringify({ v: 1, anchors: persist, enabled: state.walking.enabled }));
+    } catch (e) {
+      // quota / privacy mode — ignore
+    }
+  }
+  function loadAnchorsFromStorage(slug) {
+    try {
+      const raw = localStorage.getItem(anchorStorageKey(slug));
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (!obj || !Array.isArray(obj.anchors)) return null;
+      return obj;
+    } catch (e) { return null; }
+  }
+  function restoreAnchorsForCurrentArea() {
+    const obj = loadAnchorsFromStorage(state.currentTripAreaSlug);
+    if (!obj || obj.anchors.length === 0) return false;
+    // Reset existing anchors, then re-hydrate with new ids
+    state.walking.anchors = obj.anchors.map(a => ({
+      id: nextAnchorId(),
+      mode: a.mode,
+      lat: a.lat, lng: a.lng,
+      label: a.label,
+      color: a.color,
+      placeId: a.placeId || undefined,
+      stationId: a.stationId || undefined,
+    }));
+    if (obj.enabled) {
+      state.walking.enabled = true;
+      $("walkingToggle").checked = true;
+      $("walkingBody").classList.add("open");
+    }
+    return true;
+  }
+
+  // -----------------------------------------------------------
+  // E3: Walking route TSP
+  // -----------------------------------------------------------
+  const OSRM_BASE = "https://router.project-osrm.org";
+  const TSP_MAX_BRUTE = 8;   // brute force permutations (8! = 40320)
+  const TSP_MAX_TOTAL = 12;  // hard cap for nearest-neighbour + 2-opt
+  let routeLayer = null;     // L.layerGroup for the drawn route
+
+  function ensureRouteLayer() {
+    if (!routeLayer) {
+      routeLayer = L.layerGroup().addTo(map);
+    }
+    return routeLayer;
+  }
+  function hideRoutePanel() {
+    if (routeLayer) { routeLayer.clearLayers(); }
+    const panel = $("routePanel");
+    if (panel) { panel.style.display = "none"; panel.innerHTML = ""; }
+  }
+
+  // Brute force shortest open path through all points
+  function tspBruteForce(points) {
+    const n = points.length;
+    if (n <= 1) return { order: points.map((_, i) => i), distance: 0 };
+    const idxs = points.map((_, i) => i);
+    let best = { order: idxs.slice(), distance: pathLen(idxs, points) };
+    function permute(arr, k) {
+      if (k === arr.length - 1) {
+        const d = pathLen(arr, points);
+        if (d < best.distance) best = { order: arr.slice(), distance: d };
+        return;
+      }
+      for (let i = k; i < arr.length; i++) {
+        [arr[k], arr[i]] = [arr[i], arr[k]];
+        permute(arr, k + 1);
+        [arr[k], arr[i]] = [arr[i], arr[k]];
+      }
+    }
+    permute(idxs.slice(), 0);
+    return best;
+  }
+  function pathLen(order, points) {
+    let d = 0;
+    for (let i = 0; i < order.length - 1; i++) {
+      const a = points[order[i]], b = points[order[i + 1]];
+      d += haversine(a.lat, a.lng, b.lat, b.lng);
+    }
+    return d;
+  }
+  // Nearest neighbour + 2-opt for larger N
+  function tspNN2opt(points) {
+    const n = points.length;
+    if (n <= 1) return { order: points.map((_, i) => i), distance: 0 };
+    // NN from each start, keep best
+    let best = null;
+    for (let s = 0; s < n; s++) {
+      const visited = new Array(n).fill(false);
+      const order = [s]; visited[s] = true;
+      while (order.length < n) {
+        const cur = order[order.length - 1];
+        let nearest = -1, nd = Infinity;
+        for (let j = 0; j < n; j++) {
+          if (visited[j]) continue;
+          const d = haversine(points[cur].lat, points[cur].lng, points[j].lat, points[j].lng);
+          if (d < nd) { nd = d; nearest = j; }
+        }
+        order.push(nearest); visited[nearest] = true;
+      }
+      const d = pathLen(order, points);
+      if (!best || d < best.distance) best = { order, distance: d };
+    }
+    // 2-opt swaps
+    let improved = true, iter = 0;
+    while (improved && iter < 100) {
+      improved = false; iter++;
+      for (let i = 0; i < best.order.length - 1; i++) {
+        for (let k = i + 1; k < best.order.length; k++) {
+          const newOrder = best.order.slice(0, i).concat(
+            best.order.slice(i, k + 1).reverse(),
+            best.order.slice(k + 1)
+          );
+          const d = pathLen(newOrder, points);
+          if (d < best.distance - 0.0001) {
+            best = { order: newOrder, distance: d };
+            improved = true;
+          }
+        }
+      }
+    }
+    return best;
+  }
+
+  async function osrmRoute(points) {
+    // points are in TSP order; OSRM /route/v1/foot expects lng,lat;lng,lat;...
+    const coords = points.map(p => `${p.lng},${p.lat}`).join(";");
+    const url = `${OSRM_BASE}/route/v1/foot/${coords}?overview=full&geometries=geojson`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const r = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (!r.ok) throw new Error("osrm_http_" + r.status);
+      const j = await r.json();
+      if (!j.routes || j.routes.length === 0) throw new Error("osrm_no_route");
+      const route = j.routes[0];
+      // NOTE: 公共 OSRM demo (router.project-osrm.org) 只跑 car profile，
+      // /route/v1/foot/ 雖然接受但 duration 係汽車速度。
+      // 距離係真正路網距離，仍然可信；duration 我哋根據步行速度自己算。
+      const distanceM = route.distance;
+      const durationSec = distanceM / (WALK_METRES_PER_MIN / 60); // 56 m/min ÷ 60 = m/s
+      return {
+        distance: distanceM, // metres
+        duration: durationSec, // seconds, recomputed at walking pace
+        geometry: route.geometry.coordinates.map(([lng, lat]) => [lat, lng]),
+      };
+    } catch (e) {
+      clearTimeout(timer);
+      throw e;
+    }
+  }
+
+  async function planWalkingRoute() {
+    const w = state.walking;
+    const valid = w.anchors.filter(a => a.lat != null && a.lng != null);
+    if (valid.length < 2) return;
+    if (valid.length > TSP_MAX_TOTAL) {
+      alert(`最多 ${TSP_MAX_TOTAL} 個起點可規劃路線`);
+      return;
+    }
+
+    const panel = $("routePanel");
+    panel.style.display = "block";
+    panel.innerHTML = `<div style="color:var(--muted);">計算中…</div>`;
+
+    // 1. TSP order (open path, no return to start)
+    const tsp = valid.length <= TSP_MAX_BRUTE ? tspBruteForce(valid) : tspNN2opt(valid);
+    const ordered = tsp.order.map(i => valid[i]);
+
+    // 2. OSRM for accurate distance / duration / geometry; fallback to Haversine + 80m/min
+    let route, source;
+    try {
+      route = await osrmRoute(ordered);
+      source = "osrm";
+    } catch (e) {
+      const dist = tsp.distance;
+      route = {
+        distance: dist,
+        duration: dist / (WALK_METRES_PER_MIN / 60), // m/s
+        geometry: ordered.map(a => [a.lat, a.lng]),
+      };
+      source = "haversine";
+    }
+
+    // 3. Draw polyline
+    const layer = ensureRouteLayer();
+    layer.clearLayers();
+    L.polyline(route.geometry, {
+      color: "#1976d2", weight: 5, opacity: 0.85, dashArray: "6,4",
+    }).addTo(layer);
+    // Numbered waypoint markers
+    ordered.forEach((a, i) => {
+      L.marker([a.lat, a.lng], {
+        icon: L.divIcon({
+          className: "route-waypoint",
+          html: `<div style="background:#1976d2;color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4);">${i + 1}</div>`,
+          iconSize: [22, 22], iconAnchor: [11, 11],
+        }),
+        interactive: false,
+        keyboard: false,
+        zIndexOffset: 2000,
+      }).addTo(layer);
+    });
+
+    // 4. Side panel
+    const km = (route.distance / 1000).toFixed(2);
+    const mins = Math.round(route.duration / 60);
+    const sourceTxt = source === "osrm" ? "OSRM 路網距離" : "直線估算（OSRM 不可用）";
+    panel.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <b>規劃路線</b>
+        <button class="btn-sm" id="hideRouteBtn" style="padding:2px 6px;font-size:10px;">關閉</button>
+      </div>
+      <div style="margin-bottom:4px;">全程 ${km} km・約 ${mins} 分鐘・<span style="color:var(--muted);">${sourceTxt}</span></div>
+      <ol style="margin:0;padding-left:18px;">
+        ${ordered.map(a => `<li style="margin:2px 0;"><span style="display:inline-block;width:10px;height:10px;background:${a.color};border-radius:50%;margin-right:4px;"></span>${a.label}</li>`).join("")}
+      </ol>
+    `;
+    $("hideRouteBtn").addEventListener("click", hideRoutePanel);
   }
 
   function pickAnchorColor() {
@@ -795,6 +1077,7 @@
   function finalizeAnchorAdd() {
     renderAnchorList();
     updateWalkingUI();
+    saveAnchorsToStorage();
     if (state.walking.enabled) applyFilters();
   }
 
@@ -803,6 +1086,17 @@
     state.walking.lastError = null;
     renderAnchorList();
     updateWalkingUI();
+    saveAnchorsToStorage();
+    applyFilters();
+  }
+
+  function clearAllAnchors() {
+    state.walking.anchors = [];
+    state.walking.lastError = null;
+    hideRoutePanel();
+    renderAnchorList();
+    updateWalkingUI();
+    saveAnchorsToStorage();
     applyFilters();
   }
 
@@ -956,6 +1250,13 @@
     const statusEl = $("walkingStatus");
     statusEl.classList.remove("error");
 
+    // E1/E3: toggle button enabled state
+    const validCount = w.anchors.filter(a => a.lat != null).length;
+    const clearBtn = $("clearAnchorsBtn");
+    const planBtn = $("planRouteBtn");
+    if (clearBtn) clearBtn.disabled = w.anchors.length === 0;
+    if (planBtn) planBtn.disabled = validCount < 2;
+
     if (w.lastError) {
       statusEl.textContent = w.lastError;
       statusEl.classList.add("error");
@@ -963,10 +1264,9 @@
     }
 
     const radius = w.minutes * WALK_METRES_PER_MIN;
-    const n = w.anchors.filter(a => a.lat != null).length;
-    const suffix = n === 0 ? "· 未有起點"
-                : n === 1 ? "· 1 個起點"
-                : `· ${n} 個起點（同時要係範圍內）`;
+    const suffix = validCount === 0 ? "· 未有起點"
+                : validCount === 1 ? "· 1 個起點"
+                : `· ${validCount} 個起點（同時要係範圍內）`;
     statusEl.textContent = `${w.minutes} 分鐘 ≈ ${radius}m ${suffix}`;
   }
 
@@ -1027,11 +1327,37 @@
 
     const emoji = CATEGORY_EMOJI[p.category] || DEFAULT_EMOJI;
     $("detailName").innerHTML = `${emoji} ${escapeHtml(p.name)}`;
+    const dayLabel = p.day_tag != null ? `Day ${p.day_tag}` : null;
     $("detailMeta").textContent = [
-      p.category, p.region, p.price_level,
+      p.category, p.region, p.price_level, dayLabel,
       p.google_rating ? `Google ${p.google_rating}` : null,
       p.tabelog_rating ? `Tabelog ${p.tabelog_rating}` : null
     ].filter(Boolean).join(" · ");
+
+    // E2: owner-only inline day-tag editor
+    const ownerDayEl = $("detailOwnerDay");
+    if (ownerDayEl) {
+      if (state.role === "owner") {
+        ownerDayEl.style.display = "block";
+        const sel = ownerDayEl.querySelector("select");
+        sel.value = p.day_tag != null ? String(p.day_tag) : "";
+        sel.onchange = async () => {
+          const val = sel.value === "" ? null : parseInt(sel.value, 10);
+          const { error } = await sb.rpc("update_place_day", {
+            p_invite_code: state.inviteCode,
+            p_display_name: state.displayName,
+            p_place_id: p.id,
+            p_day_tag: val,
+          });
+          if (error) { alert("更新失敗：" + error.message); return; }
+          p.day_tag = val;
+          applyFilters();
+          openPlaceDetail(p.id);
+        };
+      } else {
+        ownerDayEl.style.display = "none";
+      }
+    }
 
     // 營業時間
     const hoursEl = $("detailHours");
@@ -1184,6 +1510,7 @@
       ? tagsRaw.split(/[,，、]+/).map(s => s.trim()).filter(Boolean)
       : [];
 
+    const dayTagRaw = $("pmDayTag").value;
     const place = {
       name,
       category: $("pmCategory").value || null,
@@ -1194,6 +1521,7 @@
       note: $("pmNote").value.trim() || null,
       google_url: $("pmGoogleUrl").value.trim() || null,
       tabelog_url: $("pmTabelogUrl").value.trim() || null,
+      day_tag: dayTagRaw === "" ? null : parseInt(dayTagRaw, 10),
     };
 
     const { error } = await sb.rpc("add_place", {
@@ -1215,6 +1543,7 @@
       .forEach(id => $(id).value = "");
     $("pmCategory").value = "";
     $("pmPrice").value = "";
+    $("pmDayTag").value = "";
   }
 
   // -----------------------------------------------------------
