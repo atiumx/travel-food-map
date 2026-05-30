@@ -956,7 +956,8 @@
       .select("*")
       .eq("trip_area_id", ta.id)
       .eq("is_archived", false)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(2000);  // Perf-D: bump from Supabase default 1000 to support 400+/area
     if (error) { console.error(error); return; }
     state.places = data || [];
     applyFilters();
@@ -1185,8 +1186,11 @@
     else if (openNow === false) openBadge = '<span class="badge-open closed">休息</span>';
     const dayBadgeHtml = p.day_tag != null
       ? `<span class="badge-day">Day ${p.day_tag}</span>` : "";
+    // Perf-C: unverified badge for lower-confidence entries
+    const unverifiedBadge = (p.verified === false)
+      ? '<span class="badge-unverified" title="未完全驗證坐標/資料">⚠</span>' : "";
     div.innerHTML = `
-      <div class="name">${bmIcon}${escapeHtml(p.name)}${openBadge}${dayBadgeHtml}</div>
+      <div class="name">${bmIcon}${escapeHtml(p.name)}${openBadge}${dayBadgeHtml}${unverifiedBadge}</div>
       <div class="meta">${escapeHtml(meta)}</div>
       ${tags ? `<div class="tags">${tags}</div>` : ""}
     `;
@@ -1918,7 +1922,10 @@
     if (!p) return;
 
     const emoji = CATEGORY_EMOJI[p.category] || DEFAULT_EMOJI;
-    $("detailName").innerHTML = `${emoji} ${escapeHtml(p.name)}`;
+    // Perf-C: unverified marker in detail name
+    const unverifiedNameBadge = (p.verified === false)
+      ? ' <span class="badge-unverified" title="未完全驗證坐標/資料">⚠ 未驗證</span>' : "";
+    $("detailName").innerHTML = `${emoji} ${escapeHtml(p.name)}${unverifiedNameBadge}`;
 
     // I1: hero photo (real img if hero_photo_url present, else CSS gradient + big emoji)
     const heroEl = $("detailHero");
