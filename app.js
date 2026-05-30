@@ -1110,6 +1110,22 @@
     return true;
   }
 
+  // H3: List ↔ Map bidirectional sync helpers
+  function highlightMarker(placeId, on) {
+    const m = state.markers.get(placeId);
+    if (m && m._icon) m._icon.classList.toggle("list-hover", !!on);
+  }
+  function highlightListItem(placeId, on) {
+    const el = placeListEl && placeListEl.querySelector(`.place-item[data-place-id="${placeId}"]`);
+    if (el) el.classList.toggle("marker-hover", !!on);
+  }
+  function scrollListItemIntoView(placeId) {
+    const el = placeListEl && placeListEl.querySelector(`.place-item[data-place-id="${placeId}"]`);
+    if (el && typeof el.scrollIntoView === "function") {
+      try { el.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (_) { el.scrollIntoView(); }
+    }
+  }
+
   function renderList() {
     if (state.filtered.length === 0) {
       const msg = state.walking.enabled
@@ -1123,6 +1139,8 @@
     for (const p of state.filtered) {
       const div = document.createElement("div");
       div.className = "place-item" + (p.id === state.selectedPlaceId ? " active" : "");
+      // H3: data-id for marker↔list sync
+      div.dataset.placeId = p.id;
       const metaParts = [p.category, p.region, p.price_level].filter(Boolean);
       if (p._distance_m != null) {
         const mins = Math.max(1, Math.round(p._distance_m / WALK_METRES_PER_MIN));
@@ -1145,6 +1163,9 @@
         ${tags ? `<div class="tags">${tags}</div>` : ""}
       `;
       div.addEventListener("click", () => openPlaceDetail(p.id));
+      // H3: list hover → highlight marker (desktop only)
+      div.addEventListener("mouseenter", () => highlightMarker(p.id, true));
+      div.addEventListener("mouseleave", () => highlightMarker(p.id, false));
       placeListEl.appendChild(div);
     }
   }
@@ -1177,6 +1198,9 @@
       const m = L.marker([p.lat, p.lng], { icon });
       m.bindTooltip(p.name);
       m.on("click", () => openPlaceDetail(p.id));
+      // H3: marker hover ↔ list sync
+      m.on("mouseover", () => highlightListItem(p.id, true));
+      m.on("mouseout",  () => highlightListItem(p.id, false));
       state.markers.set(p.id, m);
       cluster.addLayer(m);
     }
@@ -1898,6 +1922,8 @@
       }
     }
     renderList(); // refresh active state
+    // H3: scroll the active item into view in the list
+    try { scrollListItemIntoView(p.id); } catch (_) {}
 
     // suggestions + photos (parallel with reviews)
     loadAndRenderSuggestions(placeId).catch(() => {});

@@ -248,6 +248,18 @@ body {
   animation: markerBounce 0.5s ease-out, markerPulse 1.4s ease-out 0.5s 2;
   z-index: 1000;
 }
+/* H3: list ↔ map hover sync */
+.emoji-marker.list-hover .emoji-marker-inner {
+  transform: rotate(-45deg) scale(1.18);
+  box-shadow: 0 0 0 3px rgba(177,57,38,0.35), 0 2px 6px rgba(0,0,0,0.25);
+  z-index: 800;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.place-item.marker-hover {
+  background: #fff5e8;
+  outline: 1.5px solid var(--accent);
+  outline-offset: -1.5px;
+}
 
 .footer-actions {
   padding: 10px 16px; border-top: 1px solid var(--border);
