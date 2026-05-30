@@ -214,6 +214,8 @@ body {
 }
 .filter-row { display: flex; gap: 6px; }
 .filter-row > * { flex: 1; }
+/* Filter collapse toggle: mobile-only, base-hidden */
+.filter-toggle-row { display: none; }
 /* I2: facet chips */
 .facet-row {
   display: flex;
@@ -806,21 +808,31 @@ body {
   .sidebar header #themeToggle {
     display: none !important;
   }
-  /* Float mapStyleSelect to map top-right corner */
+  /* Float mapStyleSelect to map top-right corner (compact) */
   .sidebar header #mapStyleSelect {
     position: fixed;
-    top: calc(8px + var(--sat, 0px));
-    right: calc(8px + var(--sar, 0px));
+    top: calc(4px + var(--sat, 0px));
+    right: calc(6px + var(--sar, 0px));
     margin: 0;
     z-index: 1050;
-    background: rgba(255,255,255,0.95);
+    background: rgba(255,255,255,0.92);
     color: #1a1a1a;
-    border: 1px solid rgba(0,0,0,0.15);
-    font-size: 12px;
-    padding: 6px 8px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    border: 1px solid rgba(0,0,0,0.12);
+    font-size: 11px !important;
+    padding: 3px 16px 3px 6px !important;
+    height: 26px !important;
+    min-height: 0 !important;
+    line-height: 18px;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
     transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, #555 50%), linear-gradient(135deg, #555 50%, transparent 50%);
+    background-position: calc(100% - 8px) 11px, calc(100% - 4px) 11px;
+    background-size: 4px 4px;
+    background-repeat: no-repeat;
+    padding-right: 16px;
   }
   /* Hide map style picker when sheet covers map */
   body.fab-hidden .sidebar header #mapStyleSelect {
@@ -829,31 +841,94 @@ body {
     transform: translateY(-8px);
     pointer-events: none;
   }
-  /* Float tripAreaSelect (九州／大阪／台北) to map top-left corner */
+  /* Float tripAreaSelect (九州／大阪／台北) to map top-left corner (compact) */
   .filters #tripAreaSelect {
     position: fixed;
-    top: calc(8px + var(--sat, 0px));
-    left: calc(8px + var(--sar, 0px));
+    top: calc(4px + var(--sat, 0px));
+    left: calc(6px + var(--sar, 0px));
     width: auto;
-    min-width: 110px;
-    max-width: 45vw;
+    min-width: 84px;
+    max-width: 40vw;
     z-index: 1050;
-    background: rgba(255,255,255,0.95);
+    background: rgba(255,255,255,0.92);
     color: #1a1a1a;
-    border: 1px solid rgba(0,0,0,0.15);
-    font-size: 13px;
+    border: 1px solid rgba(0,0,0,0.12);
+    font-size: 12px !important;
     font-weight: 600;
-    padding: 6px 10px;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-    min-height: 0;
+    padding: 3px 16px 3px 8px !important;
+    height: 26px !important;
+    min-height: 0 !important;
+    line-height: 18px;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
     transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: linear-gradient(45deg, transparent 50%, #555 50%), linear-gradient(135deg, #555 50%, transparent 50%);
+    background-position: calc(100% - 8px) 11px, calc(100% - 4px) 11px;
+    background-size: 4px 4px;
+    background-repeat: no-repeat;
+    padding-right: 16px;
   }
   body.fab-hidden .filters #tripAreaSelect {
     opacity: 0;
     visibility: hidden;
     transform: translateY(-8px);
     pointer-events: none;
+  }
+
+  /* =================================================================
+     Collapsible filter section (mobile only)
+     Keeps search + filter-toggle visible; hides chip rows / panels
+     so the place list gets the lion's share of the sheet height.
+     ================================================================= */
+  .filter-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+  }
+  .filter-toggle-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--input-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    min-height: 38px;
+  }
+  .filter-toggle-btn .badge {
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 10px;
+    margin-left: 4px;
+    display: none;
+  }
+  .filter-toggle-btn.has-active .badge { display: inline; }
+  .filter-toggle-btn .chevron {
+    transition: transform 0.2s;
+    opacity: 0.6;
+    font-size: 12px;
+  }
+  body:not(.filters-collapsed) .filter-toggle-btn .chevron {
+    transform: rotate(180deg);
+  }
+  /* When collapsed (default on mobile), hide all filter chips/panels */
+  body.filters-collapsed .filters .filter-row,
+  body.filters-collapsed .filters .facet-row,
+  body.filters-collapsed .filters .day-strip,
+  body.filters-collapsed .walking-panel,
+  body.filters-collapsed #budgetPanel {
+    display: none !important;
   }
 
   /* ---- F1: tap targets ≥44px + font 16px (no iOS zoom) ---- */
@@ -943,8 +1018,16 @@ body {
   .place-item .meta { font-size: 13px; }
 
   /* ---- F2-7: Leaflet zoom follows sheet top (same --fab-bottom var as FAB) ---- */
+  /* Lift the entire bottom-right corner container above the sheet (z-index 900) */
+  .leaflet-bottom.leaflet-right {
+    z-index: 1100 !important;
+    pointer-events: none; /* let children handle clicks; container itself transparent */
+  }
+  .leaflet-bottom.leaflet-right > * {
+    pointer-events: auto;
+  }
   .leaflet-control-zoom {
-    margin-right: calc(12px + var(--sar)) !important;
+    margin-right: calc(80px + var(--sar)) !important; /* leave room for FAB column */
     /* Use same dynamic --fab-bottom from JS so zoom rides above the sheet edge */
     margin-bottom: calc(var(--fab-bottom, 154px) + var(--sab)) !important;
     transition: opacity 0.2s, visibility 0.2s, transform 0.2s;
