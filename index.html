@@ -185,6 +185,25 @@ body {
 .emoji-marker-inner.bookmark-favorite { border-color: #c87f0a; }
 .emoji-marker-inner.bookmark-wishlist { border-color: #2c6fb8; }
 .emoji-marker-inner.bookmark-been { border-color: #3a8a3a; opacity: 0.6; }
+/* G3c: selected marker pulse + bounce */
+@keyframes markerBounce {
+  0%   { transform: rotate(-45deg) scale(1); }
+  30%  { transform: rotate(-45deg) scale(1.35); }
+  60%  { transform: rotate(-45deg) scale(0.95); }
+  100% { transform: rotate(-45deg) scale(1.15); }
+}
+@keyframes markerPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(177,57,38,0.55); }
+  70%  { box-shadow: 0 0 0 14px rgba(177,57,38,0); }
+  100% { box-shadow: 0 0 0 0 rgba(177,57,38,0); }
+}
+.emoji-marker.selected .emoji-marker-inner {
+  border-color: #b13926;
+  border-width: 3px;
+  transform: rotate(-45deg) scale(1.15);
+  animation: markerBounce 0.5s ease-out, markerPulse 1.4s ease-out 0.5s 2;
+  z-index: 1000;
+}
 
 .footer-actions {
   padding: 10px 16px; border-top: 1px solid var(--border);
@@ -212,6 +231,8 @@ body {
   display: none;
 }
 .detail.open { display: block; }
+.detail-handle { display: none; }  /* hidden on desktop */
+.detail-body { /* desktop: no special flex */ }
 .detail h2 { margin: 0 0 6px; font-size: 16px; }
 .detail .meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
 .detail .links { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
@@ -597,24 +618,61 @@ body {
     font-size: 22px !important;
   }
 
-  /* ---- Detail panel: full-screen modal on mobile ---- */
+  /* ---- Detail panel: half-sheet on mobile (G3a) ---- */
   .detail {
     position: fixed;
-    top: 0 !important;
+    top: 45dvh !important;
     left: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
     width: 100% !important;
-    height: 100dvh !important;
-    max-height: 100dvh !important;
-    border-radius: 0;
-    z-index: 1000;
-    padding-top: calc(12px + var(--sat));
-    padding-bottom: calc(12px + var(--sab));
+    height: 55dvh !important;
+    max-height: 55dvh !important;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.15);
+    z-index: 1100;
+    padding: 0 16px calc(12px + var(--sab));
+    overflow: hidden;
+    transition: top 0.25s ease, height 0.25s ease;
+    display: none;
+    flex-direction: column;
+  }
+  .detail.open { display: flex; }
+  .detail-handle {
+    flex: 0 0 auto;
+    width: 100%;
+    padding: 8px 0 6px;
+    display: flex !important;
+    justify-content: center;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+  .detail-handle::before {
+    content: "";
+    width: 40px;
+    height: 4px;
+    border-radius: 2px;
+    background: #c8c4b8;
+  }
+  .detail-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-top: 2px;
   }
   .detail .close-btn {
     min-height: var(--tap-min);
     min-width: var(--tap-min);
+    top: 4px;
+    right: 8px;
+    z-index: 2;
+  }
+  /* expanded state — full coverage if user drags up */
+  .detail.expanded {
+    top: calc(8px + var(--sat)) !important;
+    height: calc(100dvh - 8px - var(--sat)) !important;
+    max-height: calc(100dvh - 8px - var(--sat)) !important;
   }
 
   /* Modals: full-screen on mobile */
@@ -790,7 +848,9 @@ body {
 
 <!-- Detail panel -->
 <aside class="detail" id="detailPanel">
+  <div class="detail-handle" id="detailHandle" aria-hidden="true"></div>
   <button class="close-btn" id="detailClose">×</button>
+  <div class="detail-body" id="detailBody">
   <h2 id="detailName"></h2>
   <div class="meta" id="detailMeta"></div>
   <div id="detailOwnerDay" style="display:none;font-size:12px;margin:4px 0;color:var(--muted);">
@@ -838,6 +898,7 @@ body {
     <div id="suggestionList"></div>
     <button class="btn" id="addSuggestionBtn" style="margin-top:10px;" disabled>提建議（有錯／推薦／勸退）</button>
   </div>
+  </div><!-- /detail-body -->
 </aside>
 
 <!-- Invite modal -->

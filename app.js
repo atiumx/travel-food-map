@@ -185,6 +185,7 @@
     setupMobileZoom();
     setupMarkerLongPress();
     setupDetailSwipe();
+    setupDetailHalfSheet();
     setupPullToRefresh();
     setupMapFabs();
     window.addEventListener("resize", () => {
@@ -397,11 +398,13 @@
     const panel = $("detailPanel");
     if (!panel) return;
     let sx = 0, sy = 0, st = 0;
-    panel.addEventListener("touchstart", (e) => {
+    // attach to detail body so left/right swipe doesn't conflict with handle vertical drag
+    const swipeTarget = document.getElementById("detailBody") || panel;
+    swipeTarget.addEventListener("touchstart", (e) => {
       const t = e.touches[0];
       sx = t.clientX; sy = t.clientY; st = Date.now();
     }, { passive: true });
-    panel.addEventListener("touchend", (e) => {
+    swipeTarget.addEventListener("touchend", (e) => {
       const t = e.changedTouches[0];
       const dx = t.clientX - sx;
       const dy = t.clientY - sy;
@@ -420,6 +423,70 @@
         haptic(12);
         openPlaceDetail(next.id);
       }
+    });
+  }
+
+  // G3b: handle drag for detail half-sheet (snap between half / expanded / close)
+  function setupDetailHalfSheet() {
+    const panel = $("detailPanel");
+    const handle = document.getElementById("detailHandle");
+    if (!panel || !handle) return;
+    let startY = 0, dragging = false, dy = 0;
+
+    function onStart(clientY) {
+      if (!isMobile()) return;
+      dragging = true;
+      startY = clientY;
+      dy = 0;
+      panel.style.transition = "none";
+    }
+    function onMove(clientY) {
+      if (!dragging) return;
+      dy = clientY - startY;
+      // Allow follow-finger only downward when in half state, upward only if not expanded
+      const isExpanded = panel.classList.contains("expanded");
+      const base = isExpanded ? 0 : 0;
+      let translate = Math.max(-200, dy);  // clamp upward drag
+      panel.style.transform = `translateY(${translate}px)`;
+    }
+    function onEnd(clientY) {
+      if (!dragging) return;
+      dragging = false;
+      panel.style.transition = "";
+      panel.style.transform = "";
+      const isExpanded = panel.classList.contains("expanded");
+      // Decide action based on dy magnitude
+      if (dy > 120) {
+        // big downward swipe → close
+        if (isExpanded) {
+          panel.classList.remove("expanded"); // first go back to half
+          haptic(8);
+        } else {
+          panel.classList.remove("open");
+          document.querySelectorAll(".emoji-marker.selected").forEach(el => el.classList.remove("selected"));
+          haptic(8);
+        }
+      } else if (dy < -60 && !isExpanded) {
+        // swipe up → expand to full
+        panel.classList.add("expanded");
+        haptic(8);
+      } else if (dy > 40 && isExpanded) {
+        // small down from expanded → back to half
+        panel.classList.remove("expanded");
+        haptic(8);
+      }
+      // else: no change
+    }
+
+    handle.addEventListener("touchstart", (e) => onStart(e.touches[0].clientY), { passive: true });
+    handle.addEventListener("touchmove",  (e) => onMove(e.touches[0].clientY),  { passive: true });
+    handle.addEventListener("touchend",   (e) => onEnd(e.changedTouches[0]?.clientY || 0));
+    // Tap handle to toggle half <-> expanded
+    handle.addEventListener("click", () => {
+      if (!isMobile()) return;
+      if (panel.classList.contains("expanded")) panel.classList.remove("expanded");
+      else panel.classList.add("expanded");
+      haptic(6);
     });
   }
 
@@ -761,7 +828,14 @@
     $("pmCancel").addEventListener("click", () => closeModal("placeModal"));
     $("pmConfirm").addEventListener("click", handleAddPlace);
 
-    $("detailClose").addEventListener("click", () => $("detailPanel").classList.remove("open"));
+    $("detailClose").addEventListener("click", () => {
+      const panel = $("detailPanel");
+      panel.classList.remove("open");
+      panel.classList.remove("expanded");
+      // G3e: clear marker selection
+      document.querySelectorAll(".emoji-marker.selected").forEach(el => el.classList.remove("selected"));
+      // Note: do NOT auto-restore main sheet to half — user is now scanning the map; keep it at peek
+    });
     $("addReviewBtn").addEventListener("click", () => {
       if (state.role === "guest" || !state.selectedPlaceId) return;
       const place = state.places.find(p => p.id === state.selectedPlaceId);
@@ -1776,8 +1850,47 @@
 
     renderBookmarkButtons();
 
-    $("detailPanel").classList.add("open");
-    if (p.lat && p.lng) map.panTo([p.lat, p.lng]);
+    // G3c: open half-sheet + fly map + marker bounce + auto-peek main sheet on mobile
+    const panel = $("detailPanel");
+    panel.classList.add("open");
+    panel.classList.remove("expanded"); // always start at half on mobile
+    // scroll detail body to top on each open
+    const dbody = $("detailBody"); if (dbody) dbody.scrollTop = 0;
+
+    // marker bounce + selected highlight
+    try {
+      // clear previous selection
+      document.querySelectorAll(".emoji-marker.selected").forEach(el => el.classList.remove("selected"));
+      const m = state.markers.get(p.id);
+      if (m && m._icon) {
+        // re-trigger animation
+        m._icon.classList.remove("selected");
+        // force reflow
+        void m._icon.offsetWidth;
+        m._icon.classList.add("selected");
+      }
+    } catch (e) {}
+
+    // map fly: on mobile aim above the half-sheet (45dvh from top), so push the point upward visually
+    if (p.lat != null && p.lng != null) {
+      try {
+        if (isMobile()) {
+          // collapse main sidebar sheet to peek so detail sheet is dominant
+          if (typeof window.__sheetSnapTo === "function") window.__sheetSnapTo("peek");
+          // compute offset: half-sheet covers bottom 55% → shift center up by 27.5% of map height
+          const mapEl = document.getElementById("map");
+          const h = mapEl ? mapEl.clientHeight : window.innerHeight;
+          const offsetY = Math.round(h * 0.275);
+          const targetPoint = map.project([p.lat, p.lng], 16).subtract([0, -offsetY]);
+          const targetLatLng = map.unproject(targetPoint, 16);
+          map.flyTo(targetLatLng, 16, { duration: 0.6 });
+        } else {
+          map.flyTo([p.lat, p.lng], Math.max(map.getZoom(), 15), { duration: 0.5 });
+        }
+      } catch (e) {
+        map.panTo([p.lat, p.lng]);
+      }
+    }
     renderList(); // refresh active state
 
     // suggestions + photos (parallel with reviews)
