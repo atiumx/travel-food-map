@@ -1276,6 +1276,84 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
   }
 }
 
+/* ===================================================================
+   Round 2 Batch 2 — Landscape side-panel layout (Bug B fix)
+   In landscape phones the bottom-sheet model breaks (FAB off-screen,
+   filters clipped). Switch sidebar to a fixed right-side panel, keep
+   map full-bleed on the left, re-anchor FAB above zoom control.
+   =================================================================== */
+@media (max-height: 500px) and (orientation: landscape) {
+  .sidebar {
+    /* override portrait bottom-sheet positioning */
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: auto !important;
+    right: 0 !important;
+    width: 56vw !important;
+    max-width: 420px !important;
+    height: 100dvh !important;
+    border-top: none !important;
+    border-left: 1px solid var(--border);
+    border-radius: 0 !important;
+    box-shadow: -4px 0 16px rgba(0,0,0,0.12) !important;
+    transform: none !important;
+    transition: none !important;
+    overflow-y: auto;
+  }
+  /* sheet snap classes are no-ops in landscape */
+  .sidebar.snap-half, .sidebar.snap-full { top: 0 !important; }
+  /* drag handle hidden in landscape — side panel doesn't drag */
+  .sheet-handle { display: none !important; }
+  /* map fills left portion */
+  .map-wrap, #map {
+    width: 44vw !important;
+    height: 100dvh !important;
+  }
+  /* FAB stack: bottom-left of map, well clear of zoom control on right */
+  .map-fab-stack {
+    left: calc(14px + var(--sar, 0px)) !important;
+    right: auto !important;
+    bottom: calc(14px + var(--sab, 0px)) !important;
+    flex-direction: row !important;
+  }
+  body.fab-hidden .map-fab-stack { opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
+  /* keep trip/map selectors on the map (left) side */
+  .filters #tripAreaSelect {
+    left: calc(8px + var(--sar, 0px)) !important;
+    max-width: 32vw !important;
+  }
+  .sidebar header #mapStyleSelect {
+    /* keep on map area (left half), not over sidebar */
+    right: auto !important;
+    left: calc(8px + 110px + 16px + var(--sar, 0px)) !important;
+  }
+  /* detail panel: in landscape it overlays the sidebar (not full screen) */
+  .detail.open {
+    position: fixed !important;
+    top: 0 !important;
+    right: 0 !important;
+    left: auto !important;
+    width: 56vw !important;
+    max-width: 420px !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+  /* re-expose language switch + theme toggle in landscape so traveller can switch */
+  .sidebar header h1 { display: none !important; }
+  .sidebar header #langSwitch,
+  .sidebar header #themeToggle,
+  .sidebar header #roleBadge {
+    display: inline-flex !important;
+    margin-left: 6px;
+  }
+  .sidebar header {
+    padding: calc(8px + var(--sat)) 12px 8px !important;
+    min-height: 44px !important;
+    display: flex; align-items: center; gap: 6px;
+  }
+}
+
 /* iOS PWA standalone tweaks */
 @media (display-mode: standalone) {
   body { user-select: none; -webkit-user-select: none; }
