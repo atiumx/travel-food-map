@@ -682,6 +682,8 @@
     if (langSel) { langSel.value = getLang(); langSel.addEventListener("change", e => setLang(e.target.value)); }
     applyI18n();
     await loadTripAreas();
+    // v1.0.56: restore invite session (localStorage cache + background re-verify)
+    restoreInviteSession();
     // URL state 要喺 tripAreas load 完先 apply（要識 slug）
     restoreStateFromURL();
     // E1: restore persisted anchors for current area
@@ -733,21 +735,71 @@
       if (note) note.hidden = false;
     }
 
-    // invite tab → reuse shared verify helper
-    const confirmBtn = document.getElementById("onboardingInviteConfirm");
-    if (confirmBtn) {
-      confirmBtn.addEventListener("click", async () => {
-        const msg = document.getElementById("onboardingInviteMsg");
-        const code = document.getElementById("onboardingInviteInput").value.trim();
-        const name = document.getElementById("onboardingNameInput").value.trim();
-        const res = await applyInviteCode(code, name);
-        if (msg) {
-          msg.hidden = false;
-          msg.textContent = res.ok ? "✓ 驗證成功！" : res.error;
-          msg.className = "onboarding-msg " + (res.ok ? "ok" : "err");
+    // invite tab (v1.0.56) — verify + conditional name-bind UI
+    const verifyBtn = document.getElementById("onboardingInviteConfirm");
+    if (verifyBtn) {
+      verifyBtn.addEventListener("click", async () => {
+        const msg      = document.getElementById("onboardingInviteMsg");
+        const codeEl   = document.getElementById("onboardingInviteInput");
+        const code     = codeEl ? codeEl.value.trim() : "";
+        if (!code) {
+          if (msg) { msg.hidden = false; msg.textContent = "請輸入邀請碼"; msg.className = "onboarding-msg err"; }
+          return;
         }
-        if (res.ok) closeModal("onboardingModal");
+        verifyBtn.disabled = true;
+        const vRes = await verifyAndApplyCode(code);
+        verifyBtn.disabled = false;
+        if (!vRes.ok) {
+          if (msg) { msg.hidden = false; msg.textContent = vRes.error; msg.className = "onboarding-msg err"; }
+          return;
+        }
+        if (!vRes.needsName) {
+          // Already bound — show bound state + close after 1s
+          _syncDisplayNameReadonly();
+          if (msg) { msg.hidden = false; msg.textContent = "✓ 已綁定為 " + vRes.displayName; msg.className = "onboarding-msg ok"; }
+          setTimeout(() => closeModal("onboardingModal"), 900);
+          return;
+        }
+        // needs_name — show name section
+        const nameSection = document.getElementById("onboardingNameSection");
+        if (nameSection) nameSection.hidden = false;
+        if (msg) { msg.hidden = false; msg.textContent = "進一步：為這個邀請碼設定顯示名"; msg.className = "onboarding-msg ok"; }
       });
+    }
+
+    // Bind name button
+    const bindBtn = document.getElementById("onboardingBindBtn");
+    if (bindBtn) {
+      bindBtn.addEventListener("click", async () => {
+        const msg      = document.getElementById("onboardingInviteMsg");
+        const codeEl   = document.getElementById("onboardingInviteInput");
+        const nameEl   = document.getElementById("onboardingNameInput");
+        const code     = codeEl ? codeEl.value.trim() : "";
+        const name     = nameEl ? nameEl.value.trim() : "";
+        if (!name) {
+          if (msg) { msg.hidden = false; msg.textContent = "請輸入顯示名（1-40字）"; msg.className = "onboarding-msg err"; }
+          return;
+        }
+        bindBtn.disabled = true;
+        const bRes = await bindName(code, name);
+        bindBtn.disabled = false;
+        if (bRes.ok || bRes.reason === "already_bound") {
+          const finalName = bRes.display_name;
+          _applySession(code, finalName);
+          if (msg) { msg.hidden = false; msg.textContent = "✓ 已綁定為 " + finalName; msg.className = "onboarding-msg ok"; }
+          setTimeout(() => closeModal("onboardingModal"), 900);
+        } else if (bRes.reason === "rate_limited") {
+          if (msg) { msg.hidden = false; msg.textContent = "請稍候再試"; msg.className = "onboarding-msg err"; }
+        } else {
+          if (msg) { msg.hidden = false; msg.textContent = "名稱無效，請重試（" + (bRes.reason || "") + "）"; msg.className = "onboarding-msg err"; }
+        }
+      });
+    }
+
+    // Rename button inside onboarding
+    const onboardRenameBtn = document.getElementById("onboardingRenameBtn");
+    if (onboardRenameBtn) {
+      onboardRenameBtn.addEventListener("click", () => handleRename());
     }
 
     // first-visit auto-show
@@ -1795,6 +1847,9 @@
     inviteBtn.addEventListener("click", () => openModal("inviteModal"));
     $("inviteCancel").addEventListener("click", () => closeModal("inviteModal"));
     $("inviteConfirm").addEventListener("click", handleInviteConfirm);
+    // v1.0.56: sidebar rename button
+    const sidebarRenameBtn = document.getElementById("sidebarRenameBtn");
+    if (sidebarRenameBtn) sidebarRenameBtn.addEventListener("click", handleRename);
 
     addPlaceBtn.addEventListener("click", () => {
       if (state.role === "guest") return;
@@ -3542,34 +3597,165 @@
   }
 
   // -----------------------------------------------------------
-  // Invite code flow
+  // Invite code flow  (v1.0.56 — server-side display_name binding)
   // -----------------------------------------------------------
-  // Shared invite verification: validates code via Supabase RPC and, on success,
-  // applies role/identity. Returns { ok, error } so callers render their own messaging.
-  async function applyInviteCode(code, name) {
-    if (!code) return { ok: false, error: "請輸入邀請碼" };
-    if (!name) return { ok: false, error: "請輸入顯示名" };
 
+  // Low-level: call verify_invite_code and set state.  Returns
+  // { ok, needsName, displayName, error } — callers decide UI.
+  async function verifyAndApplyCode(code) {
+    if (!code) return { ok: false, error: "請輸入邀請碼" };
     const { data, error } = await sb.rpc("verify_invite_code", { p_code: code });
     if (error) return { ok: false, error: "驗證失敗：" + error.message };
     if (!data || !data.valid) {
       const reason = data ? data.reason : "unknown";
       return { ok: false, error: "邀請碼無效（" + reason + "）" };
     }
-
-    state.inviteCode = code;
-    state.displayName = name;
-    state.role = (name === cfg.OWNER_DISPLAY_NAME) ? "owner" : "friend";
-    updateRoleUI();
-    return { ok: true };
+    if (data.display_name) {
+      // Already bound — apply immediately
+      _applySession(code, data.display_name);
+      return { ok: true, needsName: false, displayName: data.display_name };
+    }
+    if (data.needs_name) {
+      return { ok: true, needsName: true };
+    }
+    // Fallback (should not happen): treat as needsName
+    return { ok: true, needsName: true };
   }
 
+  // Low-level: call bind_invite_display_name
+  async function bindName(code, name) {
+    if (!name || name.length < 1 || name.length > 40)
+      return { ok: false, reason: "invalid_name" };
+    const { data, error } = await sb.rpc("bind_invite_display_name", {
+      p_code: code, p_name: name
+    });
+    if (error) return { ok: false, reason: "rpc_error", message: error.message };
+    return data || { ok: false, reason: "no_data" };
+  }
+
+  // Low-level: call rename_invite_display_name
+  async function renameDisplay(code, newName) {
+    if (!newName || newName.length < 1 || newName.length > 40)
+      return { ok: false, reason: "invalid_name" };
+    const { data, error } = await sb.rpc("rename_invite_display_name", {
+      p_code: code, p_new_name: newName
+    });
+    if (error) return { ok: false, reason: "rpc_error", message: error.message };
+    return data || { ok: false, reason: "no_data" };
+  }
+
+  // Commit session to state + localStorage + UI
+  function _applySession(code, displayName) {
+    state.inviteCode   = code;
+    state.displayName  = displayName;
+    state.role = (displayName === cfg.OWNER_DISPLAY_NAME) ? "owner" : "friend";
+    try {
+      localStorage.setItem("tfm_invite_code", code);
+      localStorage.setItem("tfm_display_name", displayName);
+    } catch (e) {}
+    updateRoleUI();
+    _syncDisplayNameReadonly();
+  }
+
+  // Update all readonly displayName fields
+  function _syncDisplayNameReadonly() {
+    const dn = state.displayName || "";
+    // inviteModal legacy field (now readonly)
+    const legacyDN = $("displayNameInput");
+    if (legacyDN) { legacyDN.value = dn; legacyDN.readOnly = true; }
+    // onboarding bound status
+    const bindStatus = document.getElementById("onboardingBindStatus");
+    if (bindStatus) {
+      bindStatus.textContent = dn ? "已綁定為 " + dn : "";
+      bindStatus.hidden = !dn;
+    }
+    const renameBtn = document.getElementById("onboardingRenameBtn");
+    if (renameBtn) renameBtn.hidden = !dn;
+    const nameSection = document.getElementById("onboardingNameSection");
+    if (nameSection) nameSection.hidden = !!dn;
+    // sidebar rename button
+    const sidebarRenameBtn = document.getElementById("sidebarRenameBtn");
+    if (sidebarRenameBtn) sidebarRenameBtn.hidden = !dn;
+  }
+
+  // --- Legacy wrapper for inviteModal confirm button ---
   async function handleInviteConfirm() {
     const errEl = $("inviteErr");
     errEl.textContent = "";
-    const res = await applyInviteCode($("inviteInput").value.trim(), $("displayNameInput").value.trim());
-    if (!res.ok) { errEl.textContent = res.error; return; }
-    closeModal("inviteModal");
+    const code = $("inviteInput").value.trim();
+    if (!code) { errEl.textContent = "請輸入邀請碼"; return; }
+    const vRes = await verifyAndApplyCode(code);
+    if (!vRes.ok) { errEl.textContent = vRes.error; return; }
+    if (!vRes.needsName) {
+      showToast("歡迎回嚟，" + vRes.displayName);
+      closeModal("inviteModal"); return;
+    }
+    // needs_name → try up to 3 times
+    let attempts = 0;
+    while (attempts < 3) {
+      const name = ($("displayNameInput").value || "").trim();
+      if (!name) { errEl.textContent = "請輸入顯示名（1-40字）"; return; }
+      const bRes = await bindName(code, name);
+      if (bRes.ok) {
+        _applySession(code, bRes.display_name);
+        showToast("歡迎，" + bRes.display_name);
+        closeModal("inviteModal"); return;
+      }
+      if (bRes.reason === "already_bound") {
+        _applySession(code, bRes.display_name);
+        showToast("歡迎回嚟，" + bRes.display_name);
+        closeModal("inviteModal"); return;
+      }
+      if (bRes.reason === "rate_limited") {
+        errEl.textContent = "請稍候再試"; return;
+      }
+      errEl.textContent = "名稱無效，請重試（" + (bRes.reason || "") + "）";
+      attempts++;
+    }
+  }
+
+  // Rename flow (called from sidebar rename btn or onboarding rename btn)
+  async function handleRename() {
+    if (!state.inviteCode) { showToast("請先驗證邀請碼"); return; }
+    const newName = window.prompt("輸入新顯示名（1-40字）", state.displayName || "");
+    if (!newName || !newName.trim()) return;
+    const trimmed = newName.trim();
+    if (trimmed.length < 1 || trimmed.length > 40) {
+      showToast("名稱須 1-40 字"); return;
+    }
+    const res = await renameDisplay(state.inviteCode, trimmed);
+    if (res.ok) {
+      _applySession(state.inviteCode, res.display_name);
+      showToast("已改名為 " + res.display_name);
+    } else if (res.reason === "rate_limited") {
+      showToast("請稍候再試");
+    } else {
+      showToast("改名失敗（" + (res.reason || "") + "）");
+    }
+  }
+
+  // On page load: restore session from localStorage and re-verify
+  async function restoreInviteSession() {
+    let code, dn;
+    try {
+      code = localStorage.getItem("tfm_invite_code");
+      dn   = localStorage.getItem("tfm_display_name");
+    } catch (e) { return; }
+    if (!code) return;
+    // Apply cached state immediately so UI is instant
+    if (dn) { _applySession(code, dn); }
+    // Then verify in background to refresh display_name from server
+    try {
+      const { data } = await sb.rpc("verify_invite_code", { p_code: code });
+      if (data && data.valid && data.display_name) {
+        _applySession(code, data.display_name);
+      } else if (!data || !data.valid) {
+        // Code revoked — clear state
+        state.inviteCode = null; state.displayName = null; state.role = "guest";
+        try { localStorage.removeItem("tfm_invite_code"); localStorage.removeItem("tfm_display_name"); } catch (e) {}
+        updateRoleUI(); _syncDisplayNameReadonly();
+      }
+    } catch (e) { /* offline — keep cached state */ }
   }
 
   function updateRoleUI() {

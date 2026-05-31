@@ -1663,6 +1663,7 @@ summary.walking-head::-webkit-details-marker { display: none; }
     <header>
       <h1 data-i18n="app.title">旅行美食地圖</h1>
       <span id="roleBadge" class="role-badge guest" data-i18n="role.guest">訪客</span>
+      <button id="sidebarRenameBtn" class="btn" hidden title="改名" style="margin-left:4px;padding:2px 7px;font-size:11px;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);cursor:pointer;">改名</button>
       <select id="langSwitch" title="Language" aria-label="Language" style="margin-left:6px;padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);">
         <option value="zh-TW">繁中</option>
         <option value="en">EN</option>
@@ -1920,9 +1921,9 @@ summary.walking-head::-webkit-details-marker { display: none; }
   <div class="modal">
     <h2>輸入邀請碼</h2>
     <label>邀請碼</label>
-    <input id="inviteInput" type="text" autocomplete="off" />
-    <label>顯示名（你嘅暱稱）</label>
-    <input id="displayNameInput" type="text" maxlength="40" />
+    <input id="inviteInput" type="text" autocomplete="off" autocapitalize="off" />
+    <label id="displayNameLabel">顯示名（首次輸入由 server 綁定）</label>
+    <input id="displayNameInput" type="text" maxlength="40" placeholder="首次輸入否則自動展示" />
     <div class="err" id="inviteErr"></div>
     <div class="actions">
       <button class="btn" id="inviteCancel">取消</button>
@@ -1965,11 +1966,23 @@ summary.walking-head::-webkit-details-marker { display: none; }
       </section>
       <section class="onboarding-pane" data-pane="invite">
         <p class="onboarding-lead">訪客模式只可瀏覽。輸入邀請碼可解鎖：新增地點、寫評論、加照片。</p>
+
+        <!-- Step 1: verify code -->
         <label class="onboarding-label" for="onboardingInviteInput">邀請碼</label>
         <input type="text" id="onboardingInviteInput" placeholder="輸入邀請碼" autocomplete="off" autocapitalize="off" />
-        <label class="onboarding-label" for="onboardingNameInput">顯示名（你嘅暱稱）</label>
-        <input type="text" id="onboardingNameInput" maxlength="40" placeholder="你嘅暱稱" autocomplete="off" />
-        <button type="button" id="onboardingInviteConfirm" class="btn primary">驗證</button>
+        <button type="button" id="onboardingInviteConfirm" class="btn primary" style="margin-top:8px">驗證</button>
+
+        <!-- Step 2: bind name (hidden until needs_name) -->
+        <div id="onboardingNameSection" hidden style="margin-top:12px">
+          <label class="onboarding-label" for="onboardingNameInput">設定顯示名（1–40 字，唯一綁定）</label>
+          <input type="text" id="onboardingNameInput" maxlength="40" placeholder="你嘅暱稱" autocomplete="off" />
+          <button type="button" id="onboardingBindBtn" class="btn primary" style="margin-top:8px">綁定</button>
+        </div>
+
+        <!-- Bound state: shown when already bound -->
+        <p id="onboardingBindStatus" class="onboarding-msg ok" hidden style="margin-top:10px"></p>
+        <button type="button" id="onboardingRenameBtn" class="btn" hidden style="margin-top:6px">改名</button>
+
         <p id="onboardingInviteMsg" class="onboarding-msg" hidden></p>
         <p class="onboarding-hint">想攞邀請碼？聯絡 app 持有人。</p>
       </section>
