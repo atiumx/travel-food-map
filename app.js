@@ -745,26 +745,106 @@
     document.body.classList.add("filters-collapsed");
     const btn = row.querySelector("#filterToggleBtn");
     btn.addEventListener("click", () => {
-      const collapsed = document.body.classList.toggle("filters-collapsed");
-      btn.setAttribute("aria-expanded", String(!collapsed));
-      btn.querySelector(".chev").textContent = collapsed ? "▾" : "▴";
-      // Bug 5 fix: when expanding filters, auto-snap sheet to half so user sees content
-      // Bug C fix (Round 2): go through central snapTo so sheet-peek/sheet-half/sheet-full stay mutually exclusive on <body>
-      if (!collapsed) {
-        const sb = document.querySelector(".sidebar");
-        if (sb && !sb.classList.contains("snap-full") && !sb.classList.contains("snap-half")) {
-          if (typeof window.__sheetSnapTo === "function") {
-            window.__sheetSnapTo("half");
-          } else {
-            sb.classList.add("snap-half");
-            document.body.classList.remove("sheet-peek", "sheet-full");
-            document.body.classList.add("sheet-half");
-          }
-          if (typeof updateSheetState === "function") updateSheetState();
-        }
-      }
+      // A: on mobile the toggle opens the full-screen modal instead of an
+      // inline collapse. Filter UI is MOVED into the modal (single DOM source,
+      // so all existing listeners stay attached).
+      openFilterModal();
       haptic(8);
     });
+    setupFilterModal();
+    refreshFilterToggleBadge();
+  }
+
+  // ---- A: Full-screen filter modal (mobile) ----
+  // Moves filter UI out of the bottom sheet into the modal on open, and back on
+  // close. We keep a placeholder comment node for each moved element so it
+  // returns to its exact original position.
+  let _filterModalMoved = null; // [{ el, placeholder }]
+  function setupFilterModal() {
+    const closeBtn = document.getElementById("filterModalClose");
+    const resetBtn = document.getElementById("filterModalReset");
+    const applyBtn = document.getElementById("filterModalApply");
+    if (closeBtn && !closeBtn._wired) {
+      closeBtn._wired = true;
+      closeBtn.addEventListener("click", () => closeFilterModal());
+    }
+    if (applyBtn && !applyBtn._wired) {
+      applyBtn._wired = true;
+      applyBtn.addEventListener("click", () => {
+        applyFilters();
+        closeFilterModal();
+      });
+    }
+    if (resetBtn && !resetBtn._wired) {
+      resetBtn._wired = true;
+      resetBtn.addEventListener("click", () => resetAllFilters());
+    }
+  }
+
+  function openFilterModal() {
+    const modal = document.getElementById("filterModal");
+    const body = document.getElementById("filterModalBody");
+    const filters = document.querySelector(".filters");
+    if (!modal || !body || !filters) return;
+    if (!modal.hidden) return; // already open
+    // Move every .filters child into the modal body EXCEPT the floating area
+    // select and the toggle row itself.
+    _filterModalMoved = [];
+    const children = Array.from(filters.children);
+    for (const el of children) {
+      if (el.id === "tripAreaSelect" || el.id === "filterToggleRow") continue;
+      const placeholder = document.createComment("filter-slot");
+      el.parentNode.insertBefore(placeholder, el);
+      body.appendChild(el);
+      _filterModalMoved.push({ el, placeholder });
+    }
+    modal.hidden = false;
+    document.body.classList.add("filter-modal-open");
+  }
+
+  function closeFilterModal() {
+    const modal = document.getElementById("filterModal");
+    if (!modal || modal.hidden) return;
+    // Move elements back to their original positions in .filters
+    if (_filterModalMoved) {
+      for (const { el, placeholder } of _filterModalMoved) {
+        if (placeholder.parentNode) {
+          placeholder.parentNode.insertBefore(el, placeholder);
+          placeholder.remove();
+        }
+      }
+      _filterModalMoved = null;
+    }
+    modal.hidden = true;
+    document.body.classList.remove("filter-modal-open");
+    refreshFilterToggleBadge();
+  }
+
+  // Reset all filter state surfaced in the modal (NOT walking / budget).
+  function resetAllFilters() {
+    const si = document.getElementById("searchInput");
+    if (si) si.value = "";
+    ["categoryFilter", "cuisineGroupFilter", "priceFilter", "openFilter",
+     "bookmarkFilter", "dayFilter"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+    const sb = document.getElementById("sortBy");
+    if (sb) sb.value = "default";
+    if (state.tagFacets) state.tagFacets.clear();
+    if (state.tagTagsSelected) state.tagTagsSelected.clear();
+    state.openFilter = "";
+    state.bookmarkFilter = "";
+    state.dayFilter = "";
+    state.sortBy = "default";
+    if (typeof syncFacetChipsUI === "function") syncFacetChipsUI();
+    // Clear active state on dynamic tag chips (no dedicated sync fn).
+    const tagWrap = document.getElementById("tagFacetChips");
+    if (tagWrap) tagWrap.querySelectorAll(".tag-chip").forEach(b => {
+      b.classList.remove("active"); b.setAttribute("aria-pressed", "false");
+    });
+    if (typeof renderDayStrip === "function") renderDayStrip();
+    applyFilters();
     refreshFilterToggleBadge();
   }
 

@@ -586,6 +586,18 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
 /* Base (desktop): filter-toggle-row never shown */
 .filter-toggle-row { display: none; }
 
+/* A: Filter modal — base. Hidden on desktop (filters stay inline in sidebar).
+   The [hidden] attribute keeps it out of layout until JS opens it on mobile. */
+.filter-modal { display: none; }
+.filter-modal-header { display: flex; align-items: center; justify-content: space-between; }
+.filter-modal-header h2 { margin: 0; font-size: 17px; }
+.filter-modal-close {
+  border: none; background: transparent; font-size: 26px; line-height: 1;
+  cursor: pointer; color: var(--text); padding: 4px 8px; border-radius: 8px;
+}
+.filter-modal-footer { display: flex; gap: 10px; }
+.filter-modal-footer .btn { flex: 1; }
+
 /* I1: hero photo (real img or CSS gradient placeholder) */
 .detail-hero {
   width: calc(100% + 32px); margin: -14px -16px 10px;
@@ -768,10 +780,20 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
 .walking-toggle input { cursor: pointer; }
 .walking-body { display: none; flex-direction: column; gap: 8px; }
 .walking-body.open { display: flex; }
-/* R7b: cap walking-body height on mobile so it doesn't crush #placeList */
-@media (max-width: 760px) {
-  .walking-body.open { max-height: 32dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+/* B: collapsible walking settings. Default collapsed → walking-panel stays ~50px.
+   Content lives inside <details>; summary is the only thing shown until tapped. */
+.walking-settings { border: none; }
+.walking-settings > summary {
+  cursor: pointer; font-size: 13px; font-weight: 600; list-style: none;
+  display: flex; align-items: center; gap: 6px; padding: 6px 0;
+  user-select: none;
 }
+.walking-settings > summary::-webkit-details-marker { display: none; }
+.walking-settings[open] > summary { margin-bottom: 4px; }
+/* Explicit display:flex on a child of a CLOSED <details> would defeat the
+   native collapse, so only render the inner block when [open]. */
+.walking-settings-inner { display: none; flex-direction: column; gap: 8px; }
+.walking-settings[open] > .walking-settings-inner { display: flex; }
 .walking-body .label {
   font-size: 11px; color: var(--muted); margin-bottom: 2px;
 }
@@ -1099,15 +1121,76 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
   .filter-toggle-btn .chev {
     font-size: 12px; opacity: 0.7;
   }
-  /* When collapsed, hide all expandable filter UI inside .filters and below */
+  /* When collapsed, hide all expandable filter UI inside .filters and below.
+     A: walking-panel + budgetPanel are NOT hidden here anymore — they stay in
+     the sheet. The .filters content (rows/facets/day-strip) lives in the modal. */
   body.filters-collapsed .filters .filter-row,
   body.filters-collapsed .filters .facet-row,
   body.filters-collapsed .filters .sort-row,
-  body.filters-collapsed .walking-panel,
-  body.filters-collapsed #budgetPanel,
   body.filters-collapsed .day-strip {
     display: none !important;
   }
+
+  /* ---- A: Full-screen filter modal (mobile only) ---- */
+  .filter-modal:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: var(--panel);
+    padding-top: var(--sat, 0px);
+    padding-bottom: var(--sab, 0px);
+  }
+  .filter-modal-header {
+    flex: 0 0 auto;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .filter-modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  /* When filter elements are moved into the modal, render rows as wrapping
+     full-height controls (not the squeezed horizontal-scroll sheet variant). */
+  .filter-modal-body .filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 0;
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+    -webkit-mask-image: none;
+            mask-image: none;
+  }
+  .filter-modal-body .filter-row > select,
+  .filter-modal-body .filter-row > input,
+  .filter-modal-body .filter-row > button {
+    flex: 1 1 140px;
+    width: auto;
+    max-width: none;
+    min-height: 44px;
+  }
+  .filter-modal-body #searchInput { width: 100%; min-height: 44px; }
+  .filter-modal-body .facet-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .filter-modal-body .day-strip { display: flex; flex-wrap: wrap; gap: 6px; overflow: visible; }
+  .filter-modal-footer {
+    flex: 0 0 auto;
+    padding: 12px 16px calc(12px + var(--sab, 0px));
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .filter-modal-footer .btn { min-height: 48px; font-size: 15px; }
+  /* While modal open, lock background scroll on the sheet */
+  body.filter-modal-open .sidebar { pointer-events: none; }
 
   /* ---- R4-1/R4-2: mobile sheet scroll fix ----
      Bug: .sidebar overflow:hidden + flex column + .filters auto-height (615px)
@@ -1118,26 +1201,19 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
      - #placeList min-height ensures it always has scrollable real estate.
   */
   .sidebar .filters {
-    /* R6-3: flex:0 1 auto + min-height:0 + #placeList flex:1 1 auto let
-       placeList grow and crush filters to 73px ignoring its ~490px content.
-       Switch to flex:0 0 auto (no shrink) + explicit max-height so filters
-       can wrap its toggle row and at least one facet-row visibly. */
+    /* A: filters content now lives in the full-screen modal. On mobile the
+       sheet's .filters only holds search + the 篩選 toggle row, so it no
+       longer needs a max-height cap. Let it size to content. */
     flex: 0 0 auto;
-    max-height: 40dvh;
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
+    overflow: visible;
     /* R5-2: opaque bg so list items behind cannot bleed through search input */
     background: var(--panel);
     position: relative;
     z-index: 2;
   }
-  /* R7b: walking-panel itself capped, so its internal walking-body cap composes */
+  /* A: walking-panel collapse (<details>) handles its own height now; no cap. */
   .sidebar .walking-panel {
     flex: 0 0 auto;
-    max-height: 38dvh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
   }
   .sidebar #placeList {
     flex: 1 1 auto;
@@ -1581,6 +1657,9 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
         <span>步行圈篩選</span>
       </label>
       <div class="walking-body" id="walkingBody">
+        <details class="walking-settings" id="walkingSettings">
+        <summary>⚙ 設定起點 · 規劃</summary>
+        <div class="walking-settings-inner">
         <div>
           <div class="label">起點（多個要同時吃到）</div>
           <div class="anchor-list" id="anchorList"></div>
@@ -1616,6 +1695,8 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
         </div>
         <div class="walking-status" id="walkingStatus">5 分鐘 ≈ 280m · 未有起點</div>
         <div class="walking-hint">直線距離估算（速度 56 m/min，含 0.7 路程保險因子）。多個起點時，所有 anchor 都係範圍內才顯示。</div>
+        </div>
+        </details>
       </div>
     </div>
 
@@ -1636,6 +1717,19 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
       <button class="btn primary" id="addPlaceBtn" disabled>新增地點</button>
     </div>
   </aside>
+
+  <!-- A: Mobile full-screen filter modal. On mobile, filter UI is MOVED here (single source of truth) when opened. -->
+  <div id="filterModal" class="filter-modal" role="dialog" aria-modal="true" aria-labelledby="filterModalTitle" hidden>
+    <div class="filter-modal-header">
+      <h2 id="filterModalTitle">篩選</h2>
+      <button type="button" id="filterModalClose" class="filter-modal-close" aria-label="關閉">×</button>
+    </div>
+    <div class="filter-modal-body" id="filterModalBody"></div>
+    <div class="filter-modal-footer">
+      <button type="button" class="btn" id="filterModalReset">重設</button>
+      <button type="button" class="btn primary" id="filterModalApply">套用</button>
+    </div>
+  </div>
 
   <div id="map" role="application" aria-label="互動地圖"></div>
   <div id="mapLoading" class="map-loading" aria-hidden="true" style="display:none;">
