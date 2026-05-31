@@ -1829,10 +1829,10 @@
   // opening_hours: free-text string, try parse "HH:MM-HH:MM" segments
   function parseHourSegments(text) {
     if (!text) return null;
-    if (/24小時|24h|24hr|二十四小時/i.test(text)) return [[0, 1440]];
+    if (/24小時|24h|24hr|二十四小時|24 hours|24Hours/i.test(text)) return [[0, 1440]];
     // 提取所有 HH:MM-HH:MM 段
     const segs = [];
-    const re = /(\d{1,2}):(\d{2})\s*[-~–到至]\s*(\d{1,2}):(\d{2})/g;
+    const re = /(\d{1,2}):(\d{2})\s*[-~–—到至]\s*(\d{1,2}):(\d{2})/g;
     let m;
     while ((m = re.exec(text)) !== null) {
       const start = parseInt(m[1],10)*60 + parseInt(m[2],10);
@@ -1843,27 +1843,186 @@
     return segs.length > 0 ? segs : null;
   }
 
+  // ----- Per-day opening hours parsing -----
+  // 接受 3 種輸入：
+  //   1) JSON array string: '["星期一: 18:00 – 22:30", "星期二: 18:00 – 22:30", ...]'
+  //   2) JSON array (already parsed): ["Monday: ...", ...]
+  //   3) 平鋪 free-text
+  // 返回: { byWeekday: Map<0..6, segs[] | 'closed' | null>, raw: ["星期一: ..."], freeText: string|null }
+  const WD_NAMES = ["星期日","星期一","星期二","星期三","星期四","星期五","星期六"];
+  const WD_NAMES_EN = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const WD_NAMES_JP = ["日曜日","月曜日","火曜日","水曜日","木曜日","金曜日","土曜日"];
+  function _findWeekday(line) {
+    for (let i=0; i<7; i++) {
+      if (line.indexOf(WD_NAMES[i]) >= 0) return i;
+      if (line.indexOf(WD_NAMES_JP[i]) >= 0) return i;
+      if (new RegExp("^\\s*" + WD_NAMES_EN[i], "i").test(line)) return i;
+    }
+    return -1;
+  }
+  function parseOpeningHoursStructured(value) {
+    if (!value) return null;
+    let arr = null;
+    if (Array.isArray(value)) arr = value;
+    else if (typeof value === "string") {
+      const s = value.trim();
+      if (s.startsWith("[")) {
+        try { const j = JSON.parse(s); if (Array.isArray(j)) arr = j; } catch(_) {}
+      }
+    }
+    if (!arr) return { byWeekday: null, raw: null, freeText: typeof value==="string" ? value : null };
+    const byWeekday = new Map();
+    for (const line of arr) {
+      if (typeof line !== "string") continue;
+      const wd = _findWeekday(line);
+      if (wd < 0) continue;
+      // 移除 weekday 同 ':' / '：'
+      let body = line.replace(WD_NAMES[wd],"").replace(WD_NAMES_JP[wd],"").replace(new RegExp(WD_NAMES_EN[wd], "i"),"").trim();
+      body = body.replace(/^[:：]\s*/, "").trim();
+      // closed?
+      if (/休|定休|公休|Closed|closed|休業|休館|定休日/.test(body)) {
+        byWeekday.set(wd, "closed");
+        continue;
+      }
+      const segs = parseHourSegments(body);
+      byWeekday.set(wd, segs && segs.length ? segs : null);
+    }
+    return { byWeekday, raw: arr, freeText: null };
+  }
+
+  function _segsForWeekday(place, wd) {
+    const closed = place.closed_days || [];
+    if (closed.includes(wd)) return "closed";
+    const structured = parseOpeningHoursStructured(place.opening_hours);
+    if (structured && structured.byWeekday) {
+      const v = structured.byWeekday.get(wd);
+      if (v === "closed") return "closed";
+      if (Array.isArray(v) && v.length) return v;
+      if (v === null || v === undefined) return null;
+    }
+    // fallback: 平鋪 text — 假設每日都係同一段
+    const segs = parseHourSegments(place.opening_hours);
+    return segs && segs.length ? segs : null;
+  }
+
   function isOpenAt(place, date) {
     const wd = date.getDay(); // 0=Sun
-    const closed = place.closed_days || [];
-    if (closed.includes(wd)) return false;
-    const segs = parseHourSegments(place.opening_hours);
-    if (segs == null) return null; // unknown
+    const today = _segsForWeekday(place, wd);
+    if (today === "closed") return false;
     const mins = date.getHours()*60 + date.getMinutes();
-    for (const [s, e] of segs) {
-      if (mins >= s && mins < e) return true;
-      // 跨日尾段：尋日嘅後段都可能覆蓋而家。簡化：fallback 用 mins+1440 對比
-      if ((mins + 1440) >= s && (mins + 1440) < e) return true;
+    if (Array.isArray(today)) {
+      for (const [s, e] of today) {
+        if (mins >= s && mins < e) return true;
+      }
     }
+    // 檢查噖日後段（跨日營業）
+    const yesterday = _segsForWeekday(place, (wd + 6) % 7);
+    if (Array.isArray(yesterday)) {
+      for (const [s, e] of yesterday) {
+        if (e > 1440 && mins < (e - 1440)) return true;
+      }
+    }
+    if (today == null) return null; // unknown
     return false;
   }
 
   function isOpenOnWeekday(place, wd) {
-    const closed = place.closed_days || [];
-    if (closed.includes(wd)) return false;
-    const segs = parseHourSegments(place.opening_hours);
-    if (segs == null) return null; // unknown
-    return segs.length > 0;
+    const v = _segsForWeekday(place, wd);
+    if (v === "closed") return false;
+    if (Array.isArray(v)) return v.length > 0;
+    return null;
+  }
+
+  // 下次營業時間（未來 7 日內）— 返回 {wd, startMin}
+  function nextOpenTime(place, now) {
+    for (let i=0; i<7; i++) {
+      const wd = (now.getDay() + i) % 7;
+      const v = _segsForWeekday(place, wd);
+      if (!Array.isArray(v)) continue;
+      for (const [s,e] of v) {
+        if (i === 0) {
+          const curMin = now.getHours()*60 + now.getMinutes();
+          if (s > curMin) return { wd, startMin: s, dayOffset: 0 };
+        } else {
+          return { wd, startMin: s, dayOffset: i };
+        }
+      }
+    }
+    return null;
+  }
+
+  function formatMin(m) {
+    m = m % 1440;
+    const h = Math.floor(m/60), mm = m % 60;
+    return String(h).padStart(2,"0") + ":" + String(mm).padStart(2,"0");
+  }
+
+  // 渲染營業時間 block — 用於 detail panel
+  function renderHoursBlock(p) {
+    const has = p.opening_hours || (p.closed_days && p.closed_days.length);
+    if (!has) return '<span style="color:var(--muted);">🕐 營業時間未提供</span>';
+    const structured = parseOpeningHoursStructured(p.opening_hours);
+    const now = new Date();
+    const todayWd = now.getDay();
+    const openNow = isOpenAt(p, now);
+    let statusBadge = "";
+    if (openNow === true) {
+      statusBadge = '<span class="badge-open open">營業中</span>';
+    } else if (openNow === false) {
+      const nxt = nextOpenTime(p, now);
+      if (nxt) {
+        if (nxt.dayOffset === 0) {
+          statusBadge = `<span class="badge-open closed">休息・${formatMin(nxt.startMin)} 開</span>`;
+        } else if (nxt.dayOffset === 1) {
+          statusBadge = `<span class="badge-open closed">休息・聽日 ${formatMin(nxt.startMin)} 開</span>`;
+        } else {
+          statusBadge = `<span class="badge-open closed">休息・${WD_NAMES[nxt.wd]} 開</span>`;
+        }
+      } else {
+        statusBadge = '<span class="badge-open closed">休息</span>';
+      }
+    } else {
+      statusBadge = '<span class="badge-open unknown">營業未明</span>';
+    }
+
+    // 如冇 structured，fallback 顯示原 text
+    if (!structured || !structured.byWeekday || structured.byWeekday.size === 0) {
+      const txt = escapeHtml(typeof p.opening_hours === "string" ? p.opening_hours : "—");
+      return `<div class="hours-line">🕐 ${txt} ${statusBadge}</div>`;
+    }
+
+    // 今日 summary
+    const todayV = structured.byWeekday.get(todayWd);
+    let todayLabel;
+    if (todayV === "closed") todayLabel = "今日休息";
+    else if (Array.isArray(todayV) && todayV.length) {
+      todayLabel = "今日 " + todayV.map(([s,e]) => `${formatMin(s)}–${formatMin(e)}`).join(" / ");
+    } else todayLabel = "今日 —";
+
+    // 全週 list (collapsed by default)
+    const rows = [];
+    for (let i=0; i<7; i++) {
+      const wd = (todayWd + i) % 7;
+      const v = structured.byWeekday.get(wd);
+      let txt;
+      if (v === "closed") txt = "休息";
+      else if (Array.isArray(v) && v.length) txt = v.map(([s,e]) => `${formatMin(s)}–${formatMin(e)}`).join(" / ");
+      else txt = "—";
+      const cls = (wd === todayWd) ? "hours-row today" : "hours-row";
+      rows.push(`<div class="${cls}"><span class="hours-day">${WD_NAMES[wd]}${wd === todayWd ? " · 今日" : ""}</span><span class="hours-time">${escapeHtml(txt)}</span></div>`);
+    }
+
+    return `
+      <div class="hours-block">
+        <div class="hours-summary">
+          <span class="hours-summary-text">🕐 ${escapeHtml(todayLabel)}</span>
+          ${statusBadge}
+          <button type="button" class="hours-toggle" aria-expanded="false" aria-label="展開營業時間">▾</button>
+        </div>
+        <div class="hours-details" hidden>
+          ${rows.join("")}
+        </div>
+      </div>`;
   }
 
   function openMatches(p, filter) {
@@ -2927,16 +3086,16 @@
 
     // 營業時間
     const hoursEl = $("detailHours");
-    if (p.opening_hours || (p.closed_days && p.closed_days.length)) {
-      const openNow = isOpenAt(p, new Date());
-      let statusBadge = "";
-      if (openNow === true) statusBadge = '<span class="badge-open open">營業中</span>';
-      else if (openNow === false) statusBadge = '<span class="badge-open closed">休息</span>';
-      const closedDayNames = (p.closed_days || []).map(d => "日一二三四五六"[d]).join("／");
-      const closedTxt = closedDayNames ? `休：${closedDayNames}` : "";
-      hoursEl.innerHTML = `🕐 ${escapeHtml(p.opening_hours || "—")} ${closedTxt ? "· " + closedTxt : ""} ${statusBadge}`;
-    } else {
-      hoursEl.innerHTML = '<span style="color:var(--muted);">🕐 營業時間未提供</span>';
+    hoursEl.innerHTML = renderHoursBlock(p);
+    const toggle = hoursEl.querySelector(".hours-toggle");
+    const details = hoursEl.querySelector(".hours-details");
+    if (toggle && details) {
+      toggle.addEventListener("click", () => {
+        const open = !details.hidden;
+        details.hidden = open;
+        toggle.setAttribute("aria-expanded", String(!open));
+        toggle.textContent = open ? "▾" : "▴";
+      });
     }
 
     $("detailAddress").textContent = p.address ? `📍 ${p.address}` : "";
