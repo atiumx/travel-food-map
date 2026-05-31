@@ -1116,7 +1116,11 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
   .sidebar .filters {
     flex: 0 1 auto;
     min-height: 0;
-    max-height: 45%;
+    /* R6-2: was max-height:45% — too low, expanded scrollHeight ~490px got
+       crushed to 73px, hiding toggle button behind walking-panel. Bump to
+       65% so expanded filters show enough rows; .filters scrolls internally
+       and #placeList min-height drops to 30%. */
+    max-height: 65%;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
@@ -1127,7 +1131,7 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
   }
   .sidebar #placeList {
     flex: 1 1 auto;
-    min-height: 40%;
+    min-height: 30%;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     position: relative;
