@@ -1117,17 +1117,34 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
+    /* R5-2: opaque bg so list items behind cannot bleed through search input */
+    background: var(--panel);
+    position: relative;
+    z-index: 2;
   }
   .sidebar #placeList {
     flex: 1 1 auto;
     min-height: 40%;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    position: relative;
+    z-index: 1;
   }
-  /* When filters collapsed, give 100% to placeList */
+  /* When filters collapsed, give 100% to placeList.
+     R5-1: keep overflow:hidden so #placeList starts BELOW real rendered
+     bottom of .filters (44px search input + toggle btn). Previous
+     overflow:visible let search input bleed into list, overlapping first
+     place-item by ~25px. */
   body.filters-collapsed .sidebar .filters {
     max-height: none;
-    overflow: visible;
+    overflow: hidden;
+  }
+  /* R5-3: bottom safe-area + bg for footer-actions (invite/add row) */
+  .sidebar .footer-actions {
+    padding-bottom: calc(10px + var(--sab));
+    background: var(--panel);
+    position: relative;
+    z-index: 2;
   }
 
   /* ---- F2-6 + G1-1: horizontal scrolling filter chip row, fixed widths ---- */
