@@ -336,6 +336,14 @@ body {
   border-radius: 6px; font-size: 12px;
   display: inline-flex; align-items: center; justify-content: center;
   margin-left: auto;
+  position: relative; /* anchor for ::after hit area */
+}
+/* R3-2 fix: expand tap area to 44x44 without visually growing the chevron */
+.hours-toggle::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 10px;
 }
 .hours-toggle:hover { color: var(--fg, #fff); border-color: var(--muted); }
 .hours-details {
@@ -1375,7 +1383,7 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
     right: auto !important;
     left: calc(8px + 110px + 16px + var(--sar, 0px)) !important;
   }
-  /* detail panel: in landscape it overlays the sidebar (not full screen) */
+  /* detail panel: in landscape it overlays the sidebar (full sidebar height, not 55dvh) */
   .detail.open {
     position: fixed !important;
     top: 0 !important;
@@ -1384,7 +1392,9 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
     width: 56vw !important;
     max-width: 420px !important;
     height: 100dvh !important;
+    max-height: 100dvh !important;
     border-radius: 0 !important;
+    padding-top: calc(8px + var(--sat)) !important;
   }
   /* re-expose language switch + theme toggle in landscape so traveller can switch */
   .sidebar header h1 { display: none !important; }
