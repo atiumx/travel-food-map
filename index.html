@@ -936,12 +936,52 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
     /* Header still exists but contents are hidden/floated */
   }
   .sidebar header h1,
-  .sidebar header #roleBadge,
-  .sidebar header #langSwitch,
-  .sidebar header #themeToggle {
+  .sidebar header #roleBadge {
     display: none !important;
   }
+  /* Bug F fix (Round 2): lang switch + theme toggle floated to top-right under mapStyleSelect */
+  .sidebar header #langSwitch {
+    position: fixed;
+    top: calc(60px + var(--sat, 0px));
+    right: calc(8px + var(--sar, 0px));
+    z-index: 1050;
+    background: rgba(255,255,255,0.82);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #1a1a1a;
+    border: 1px solid rgba(0,0,0,0.12);
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    min-height: 36px;
+    margin: 0;
+    transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+  }
+  .sidebar header #themeToggle {
+    position: fixed;
+    top: calc(60px + var(--sat, 0px));
+    right: calc(88px + var(--sar, 0px));
+    z-index: 1050;
+    width: 36px; height: 36px;
+    background: rgba(255,255,255,0.82);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0,0,0,0.12);
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; line-height: 1;
+    margin: 0;
+    transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+  }
+  body.fab-hidden .sidebar header #langSwitch,
+  body.fab-hidden .sidebar header #themeToggle {
+    opacity: 0; visibility: hidden; transform: translateY(-8px); pointer-events: none;
+  }
   /* Float mapStyleSelect to map top-right corner */
+  /* Bug E fix (Round 2): match tripAreaSelect style (14px font, consistent padding) */
   .sidebar header #mapStyleSelect {
     position: fixed;
     top: calc(8px + var(--sat, 0px));
@@ -953,8 +993,9 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
     -webkit-backdrop-filter: blur(8px);
     color: #1a1a1a;
     border: 1px solid rgba(0,0,0,0.12);
-    font-size: 13px;
-    padding: 10px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 14px;
     border-radius: 10px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.18);
     min-height: 44px;
@@ -1114,26 +1155,22 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
   .place-item .meta { font-size: 13px; }
 
   /* ---- F2-7: Leaflet zoom follows sheet top (same --fab-bottom var as FAB) ---- */
+  /* Bug D fix (Round 2): zoom now lives bottom-LEFT, FAB stays bottom-right */
   .leaflet-control-zoom {
-    margin-right: calc(12px + var(--sar)) !important;
-    /* Use same dynamic --fab-bottom from JS so zoom rides above the sheet edge */
+    margin-left: calc(12px + var(--sar)) !important;
+    margin-right: 0 !important;
     margin-bottom: calc(var(--fab-bottom, 154px) + var(--sab)) !important;
     transition: opacity 0.2s, visibility 0.2s, transform 0.2s;
   }
-  /* Hide zoom when FAB is hidden (sheet covers map) */
   body.fab-hidden .leaflet-control-zoom {
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
     transform: translateY(8px);
   }
-  .leaflet-top.leaflet-left .leaflet-control-zoom {
-    display: none;
-  }
-  /* Move zoom to bottom-right via JS class */
-  .leaflet-bottom.leaflet-right .leaflet-control-zoom {
-    display: block;
-  }
+  .leaflet-top.leaflet-left .leaflet-control-zoom { display: none; }
+  .leaflet-bottom.leaflet-left .leaflet-control-zoom { display: block; }
+  .leaflet-bottom.leaflet-right .leaflet-control-zoom { display: none; }
   .leaflet-control-zoom a {
     width: 40px !important;
     height: 40px !important;

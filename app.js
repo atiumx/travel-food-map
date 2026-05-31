@@ -978,9 +978,10 @@
     if (!map || !map.zoomControl) return;
     try {
       if (isMobile()) {
-        if (map._zoomControlPosition !== "bottomright") {
-          map.zoomControl.setPosition("bottomright");
-          map._zoomControlPosition = "bottomright";
+        // Bug D fix (Round 2): move zoom to bottom-LEFT to avoid stacking with FAB on right
+        if (map._zoomControlPosition !== "bottomleft") {
+          map.zoomControl.setPosition("bottomleft");
+          map._zoomControlPosition = "bottomleft";
         }
       } else {
         if (map._zoomControlPosition !== "topleft") {
