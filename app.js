@@ -1141,19 +1141,54 @@
         refreshing = true;
         location.reload();
       });
-      // Listen for updates: when a new worker installs, show a toast
+      // Listen for updates: when a new worker installs, show a toast with "立即更新"
       reg.addEventListener("updatefound", () => {
         const nw = reg.installing;
         if (!nw) return;
         nw.addEventListener("statechange", () => {
           if (nw.state === "installed" && navigator.serviceWorker.controller) {
-            showToast("有新版本，刷新以更新");
+            showUpdateToast(reg);
           }
         });
       });
+      // Periodic update check (every 60s): catches new deploys while tab is open
+      setInterval(() => { reg.update().catch(()=>{}); }, 60 * 1000);
+      // Also check when tab becomes visible again
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") reg.update().catch(()=>{});
+      });
+      // If a waiting SW already exists at boot (user closed tab before update applied), prompt
+      if (reg.waiting && navigator.serviceWorker.controller) {
+        showUpdateToast(reg);
+      }
     } catch (e) {
       console.warn("sw register error", e);
     }
+  }
+
+  // Persistent update toast with "立即更新" button — triggers SW skipWaiting + reload
+  function showUpdateToast(reg) {
+    if (document.getElementById("swUpdateToast")) return; // dedupe
+    const t = document.createElement("div");
+    t.id = "swUpdateToast";
+    t.style.cssText = "position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a73e8;color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;z-index:3000;display:flex;gap:10px;align-items:center;box-shadow:0 4px 12px rgba(0,0,0,.3);";
+    t.innerHTML = '<span>有新版本可用</span><button id="swUpdateBtn" style="background:#fff;color:#1a73e8;border:0;padding:4px 10px;border-radius:4px;font-weight:600;cursor:pointer;">立即更新</button><button id="swUpdateDismiss" style="background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4);padding:4px 8px;border-radius:4px;cursor:pointer;font-size:11px;">稍後</button>';
+    document.body.appendChild(t);
+    t.querySelector("#swUpdateBtn").addEventListener("click", async () => {
+      try {
+        // Tell waiting SW to take over → controllerchange listener will reload page
+        const waiting = reg.waiting || (await navigator.serviceWorker.getRegistration())?.waiting;
+        if (waiting) {
+          waiting.postMessage({ type: "SKIP_WAITING" });
+        } else {
+          // Fallback: hard nuke
+          location.href = location.pathname + "?nuke=1";
+        }
+      } catch (e) {
+        location.href = location.pathname + "?nuke=1";
+      }
+    });
+    t.querySelector("#swUpdateDismiss").addEventListener("click", () => t.remove());
   }
 
   function setupOnlineStatus() {
