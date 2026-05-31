@@ -2367,11 +2367,8 @@
       placeId: a.placeId || undefined,
       stationId: a.stationId || undefined,
     }));
-    if (obj.enabled) {
-      state.walking.enabled = true;
-      $("walkingToggle").checked = true;
-      $("walkingBody").classList.add("open");
-    }
+    // 開網頁時唔自動啟用步行圈 (即使上次 saved enabled)；保留 anchor 喺 panel 入面方便用戶手動 toggle
+    // 如果想用，剔返 checkbox 就會即刻 apply。
     return true;
   }
 
