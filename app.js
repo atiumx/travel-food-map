@@ -1061,6 +1061,17 @@
     }
 
     function snapTo(target) {
+      // BUG FIX v1.0.54: reset placeList scrollTop when sheet shrinks
+      // Prevents list content from being scrolled out of viewport when
+      // user drags sheet from full → half/peek
+      const prevSnap = currentSnap;
+      const placeList = document.getElementById("placeList");
+      if (placeList && (
+        (prevSnap === "full" && target !== "full") ||
+        (prevSnap === "half" && target === "peek")
+      )) {
+        placeList.scrollTop = 0;
+      }
       sheet.classList.remove("snap-half", "snap-full", "dragging");
       // Mirror snap state on <body> for sticky-filter CSS & any external observers
       document.body.classList.remove("sheet-peek", "sheet-half", "sheet-full");
@@ -1147,7 +1158,14 @@
     requestAnimationFrame(() => requestAnimationFrame(updateFabFromSheet));
     // Re-sync on sheet CSS transition end (snap animation) + on resize
     sheet.addEventListener("transitionend", (e) => {
-      if (e.propertyName === "top") updateFabFromSheet();
+      if (e.propertyName === "top") {
+        updateFabFromSheet();
+        // BUG FIX v1.0.54: invalidate Leaflet size after sheet snap
+        // to prevent map render issues when sheet shrinks
+        if (map && typeof map.invalidateSize === "function") {
+          map.invalidateSize({ animate: false, pan: false });
+        }
+      }
     });
     window.addEventListener("resize", updateFabFromSheet);
     window.addEventListener("orientationchange", () => setTimeout(updateFabFromSheet, 100));
@@ -1292,6 +1310,11 @@
   function setupPullToRefresh() {
     const list = document.getElementById("placeList") || document.querySelector(".list");
     if (!list) return;
+    // BUG FIX v1.0.54: disable pull-to-refresh entirely in standalone PWA mode
+    // to prevent accidental triggering while dragging sheet
+    const isStandalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+                          window.navigator.standalone === true;
+    if (isStandalone) return;
     let sy = 0, dragging = false;
     let indicator = null;
 
@@ -1308,6 +1331,8 @@
 
     list.addEventListener("touchstart", (e) => {
       if (!isMobile()) return;
+      // BUG FIX v1.0.54: skip PTR if sheet is being dragged
+      if (document.querySelector("#sidebar.dragging")) return;
       if (list.scrollTop > 0) return;
       sy = e.touches[0].clientY;
       dragging = true;
@@ -1317,8 +1342,8 @@
       const dy = e.touches[0].clientY - sy;
       if (dy > 10) {
         const ind = ensureIndicator();
-        ind.style.opacity = Math.min(1, dy / 80);
-        if (dy > 80) ind.textContent = "↑ 釋放重載";
+        ind.style.opacity = Math.min(1, dy / 120);
+        if (dy > 120) ind.textContent = "↑ 釋放重載";
         else ind.textContent = "↓ 下拉重新載入";
       }
     }, { passive: true });
@@ -1330,7 +1355,7 @@
         indicator.style.opacity = 0;
         indicator.textContent = "↓ 下拉重新載入";
       }
-      if (dy > 80) {
+      if (dy > 120) {
         haptic(20);
         try {
           showToast && showToast("重新載入中…");
