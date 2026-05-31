@@ -6,7 +6,7 @@
  *   - Photo storage (food-map-photos object/public): cache-first (immutable URLs)
  *   - Supabase REST/RPC: network-only (always fresh, may fail offline)
  */
-const SW_VERSION = "v1.0.44-mobile-r5";
+const SW_VERSION = "v1.0.45-mobile-r5b";
 const CACHE_SHELL  = `tfm-shell-${SW_VERSION}`;
 const CACHE_DATA   = `tfm-data-${SW_VERSION}`;
 const CACHE_TILES  = `tfm-tiles`;        // 不带版本，cross-deploy 持久

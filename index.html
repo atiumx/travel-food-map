@@ -1136,8 +1136,13 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
      overflow:visible let search input bleed into list, overlapping first
      place-item by ~25px. */
   body.filters-collapsed .sidebar .filters {
+    /* R5-1 v2: force min-content so flexbox cannot crush filters below the
+       real height of search input + toggle btn (~100px), preventing search
+       input from visually overflowing into #placeList area. */
+    flex: 0 0 auto;
+    min-height: min-content;
     max-height: none;
-    overflow: hidden;
+    overflow: visible;
   }
   /* R5-3: bottom safe-area + bg for footer-actions (invite/add row) */
   .sidebar .footer-actions {
