@@ -597,6 +597,10 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
 }
 .filter-modal-footer { display: flex; gap: 10px; }
 .filter-modal-footer .btn { flex: 1; }
+/* P0-3: 顯示 section inside the modal */
+.modal-display-section { display: flex; flex-direction: column; gap: 8px; }
+.modal-section-title { font-size: 12px; font-weight: 700; color: var(--muted); }
+.modal-display-row { display: flex; align-items: center; gap: 8px; font-size: 14px; min-height: 36px; cursor: pointer; }
 
 /* I1: hero photo (real img or CSS gradient placeholder) */
 .detail-hero {
@@ -776,25 +780,37 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
   display: flex; flex-direction: column; gap: 8px;
 }
 .walking-panel .row { display: flex; align-items: center; gap: 8px; }
-.walking-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; user-select: none; }
+.walking-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; user-select: none; margin: 0; }
 .walking-toggle input { cursor: pointer; }
-.walking-body { display: none; flex-direction: column; gap: 8px; }
-.walking-body.open { display: flex; }
-/* B: collapsible walking settings. Default collapsed → walking-panel stays ~50px.
-   Content lives inside <details>; summary is the only thing shown until tapped. */
+/* B + P1-3: collapsible walking settings. The head row holds the 步行圈 checkbox
+   AND the ⚙ 設定 summary inline. Default collapsed → panel stays ~44px.
+   The summary only appears once walking is enabled. */
 .walking-settings { border: none; }
-.walking-settings > summary {
-  cursor: pointer; font-size: 13px; font-weight: 600; list-style: none;
-  display: flex; align-items: center; gap: 6px; padding: 6px 0;
-  user-select: none;
+summary.walking-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 4px 0; cursor: pointer; list-style: none;
 }
-.walking-settings > summary::-webkit-details-marker { display: none; }
-.walking-settings[open] > summary { margin-bottom: 4px; }
+summary.walking-head::-webkit-details-marker { display: none; }
+#walkingSummary {
+  font-size: 13px; font-weight: 600;
+  display: none; align-items: center; gap: 4px; user-select: none;
+  color: var(--accent);
+}
+/* Show the ⚙ 設定 toggle only when walking is enabled */
+.walking-settings.walking-enabled #walkingSummary { display: inline-flex; }
 /* Explicit display:flex on a child of a CLOSED <details> would defeat the
    native collapse, so only render the inner block when [open]. */
-.walking-settings-inner { display: none; flex-direction: column; gap: 8px; }
-.walking-settings[open] > .walking-settings-inner { display: flex; }
-.walking-body .label {
+.walking-settings-inner { display: none; flex-direction: column; gap: 8px; margin-top: 4px; }
+/* Inner content shows only when walking is enabled AND the panel is expanded. */
+.walking-settings.walking-enabled[open] > .walking-settings-inner { display: flex; }
+/* P1-4: time label row with inline status caption */
+.time-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.walking-info-btn {
+  flex: 0 0 auto; min-width: 0; width: 28px; padding: 0;
+  border: 1px solid var(--border); border-radius: 5px;
+  background: var(--input-bg); color: var(--muted); cursor: pointer; font-size: 12px;
+}
+.walking-settings .label {
   font-size: 11px; color: var(--muted); margin-bottom: 2px;
 }
 /* Anchor list (多起點) */
@@ -1105,6 +1121,17 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
        toggle button to be visually cut by walking-panel/budgetPanel that
        follow .filters. Add bottom padding so the chip is fully visible. */
     margin: 0 -14px; padding: 4px 14px 8px;
+  }
+  /* P0-2: search input + 篩選 button on one row */
+  .search-filter-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .search-filter-row #searchInput { flex: 1 1 auto; min-width: 0; }
+  .search-filter-row #filterToggleRow {
+    flex: 0 0 auto; margin: 0; padding: 0;
+  }
+  .search-filter-row .filter-toggle-btn {
+    min-height: var(--tap-min); padding: 8px 14px; font-size: 13px;
   }
   .filter-toggle-btn {
     display: inline-flex; align-items: center; gap: 6px;
@@ -1652,13 +1679,17 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
     </div>
 
     <div class="walking-panel">
-      <label class="walking-toggle">
-        <input type="checkbox" id="walkingToggle" />
-        <span>步行圈篩選</span>
-      </label>
-      <div class="walking-body" id="walkingBody">
-        <details class="walking-settings" id="walkingSettings">
-        <summary>⚙ 設定起點 · 規劃</summary>
+      <details class="walking-settings" id="walkingSettings">
+        <!-- P1-3: checkbox label + collapse toggle share one row. The <summary>
+             is the row itself (must be a direct child of <details> to toggle it);
+             the checkbox stops propagation so ticking it doesn't open the panel. -->
+        <summary class="walking-head" id="walkingHead">
+          <label class="walking-toggle">
+            <input type="checkbox" id="walkingToggle" />
+            <span>步行圈</span>
+          </label>
+          <span id="walkingSummary">⚙ 設定</span>
+        </summary>
         <div class="walking-settings-inner">
         <div>
           <div class="label">起點（多個要同時吃到）</div>
@@ -1678,26 +1709,22 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
             <input id="stationSearchInput" type="text" placeholder="揜車站名（例：博多／難波）" style="width:100%;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:4px;" />
             <div id="stationSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--input-bg);border:1px solid var(--border);border-radius:4px;max-height:200px;overflow-y:auto;z-index:1500;font-size:12px;"></div>
           </div>
-          <label style="display:flex;align-items:center;gap:4px;margin-top:4px;font-size:11px;color:var(--muted);">
-            <input type="checkbox" id="showStationsToggle" /> 地圖顯示車站
-          </label>
-          <label style="display:flex;align-items:center;gap:4px;margin-top:4px;font-size:11px;color:var(--muted);">
-            <input type="checkbox" id="heatToggle" /> <span data-i18n="btn.heat">🔥 熱力圖（按評分加權）</span>
-          </label>
         </div>
         <div>
-          <div class="label">時間（分鐘）</div>
+          <!-- P1-4: time label + inline caption on one row -->
+          <div class="time-head">
+            <span class="label">時間（分鐘）</span>
+            <span class="walking-status" id="walkingStatus">≈ 280m · 未有起點</span>
+          </div>
           <div class="chip-row">
             <button class="chip active" data-min="5">5</button>
             <button class="chip" data-min="10">10</button>
             <button class="chip" data-min="15">15</button>
+            <button type="button" class="walking-info-btn" id="walkingInfoBtn" title="直線距離估算（速度 56 m/min，含 0.7 路程保險因子）。多個起點時，所有 anchor 都係範圍內才顯示。" aria-label="說明">ⓘ</button>
           </div>
         </div>
-        <div class="walking-status" id="walkingStatus">5 分鐘 ≈ 280m · 未有起點</div>
-        <div class="walking-hint">直線距離估算（速度 56 m/min，含 0.7 路程保險因子）。多個起點時，所有 anchor 都係範圍內才顯示。</div>
         </div>
-        </details>
-      </div>
+      </details>
     </div>
 
     <!-- J2: budget tracker -->
@@ -1724,7 +1751,18 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
       <h2 id="filterModalTitle">篩選</h2>
       <button type="button" id="filterModalClose" class="filter-modal-close" aria-label="關閉">×</button>
     </div>
-    <div class="filter-modal-body" id="filterModalBody"></div>
+    <div class="filter-modal-body" id="filterModalBody">
+      <!-- P0-3: map-display toggles (not walking-specific) live at the bottom of the modal -->
+      <div class="modal-display-section" id="modalDisplaySection">
+        <div class="modal-section-title">顯示</div>
+        <label class="modal-display-row">
+          <input type="checkbox" id="showStationsToggle" /> <span>地圖顯示車站</span>
+        </label>
+        <label class="modal-display-row">
+          <input type="checkbox" id="heatToggle" /> <span data-i18n="btn.heat">🔥 熱力圖（按評分加權）</span>
+        </label>
+      </div>
+    </div>
     <div class="filter-modal-footer">
       <button type="button" class="btn" id="filterModalReset">重設</button>
       <button type="button" class="btn primary" id="filterModalApply">套用</button>

@@ -423,6 +423,9 @@
     if (!panel) return;
     const b = computeBudget();
     const cur = b.currency;
+    // P1-2: hide the whole budget panel when there are no bookmarks.
+    const panelEl = document.getElementById("budgetPanel");
+    if (panelEl) panelEl.style.display = b.totalCount === 0 ? "none" : "";
     if (b.totalCount === 0) {
       panel.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:6px 4px;" data-i18n="budget.empty">未收藏任何餐廳。加⭐/✅/❤️ 後顯示總預算。</div>';
       applyI18n();
@@ -738,9 +741,15 @@
       <span class="badge" id="filterToggleBadge" hidden>0</span>
       <span class="chev">▾</span>
     </button>`;
-    // Insert AFTER searchInput, still inside .filters container
-    if (search.nextSibling) filters.insertBefore(row, search.nextSibling);
-    else filters.appendChild(row);
+    // P0-2: place search input + 篩選 button on one flex row. The wrapper stays
+    // in .filters; only #searchInput is moved into the modal on open (see
+    // openFilterModal), so the button always remains in the sheet.
+    const wrap = document.createElement("div");
+    wrap.id = "searchFilterRow";
+    wrap.className = "search-filter-row";
+    filters.insertBefore(wrap, search);
+    wrap.appendChild(search);
+    wrap.appendChild(row);
     // Default collapsed
     document.body.classList.add("filters-collapsed");
     const btn = row.querySelector("#filterToggleBtn");
@@ -790,14 +799,26 @@
     // Move every .filters child into the modal body EXCEPT the floating area
     // select and the toggle row itself.
     _filterModalMoved = [];
+    // Move the search input first (it lives inside #searchFilterRow, not directly
+    // under .filters) so it appears at the top of the modal body.
+    const searchEl = document.getElementById("searchInput");
+    if (searchEl) {
+      const ph = document.createComment("filter-slot");
+      searchEl.parentNode.insertBefore(ph, searchEl);
+      body.appendChild(searchEl);
+      _filterModalMoved.push({ el: searchEl, placeholder: ph });
+    }
     const children = Array.from(filters.children);
     for (const el of children) {
-      if (el.id === "tripAreaSelect" || el.id === "filterToggleRow") continue;
+      if (el.id === "tripAreaSelect" || el.id === "searchFilterRow") continue;
       const placeholder = document.createComment("filter-slot");
       el.parentNode.insertBefore(placeholder, el);
       body.appendChild(el);
       _filterModalMoved.push({ el, placeholder });
     }
+    // P0-3: keep the 顯示 (map-display) section pinned to the bottom of the body.
+    const disp = document.getElementById("modalDisplaySection");
+    if (disp) body.appendChild(disp);
     modal.hidden = false;
     document.body.classList.add("filter-modal-open");
   }
@@ -937,14 +958,11 @@
       } else {
         toast("步行圈已開");
       }
-      // R3-3 fix: when enabling on mobile, auto-snap sheet to half so user sees anchor list / route options
+      // R3-3 fix: when enabling on mobile, auto-snap sheet to half so user sees the panel.
+      // P0-1: do NOT scrollIntoView #anchorList — it lives inside a closed <details>
+      // and scrolling to it would auto-expand the details (the regression we're fixing).
       if (willEnable && isMobile() && typeof window.__sheetSnapTo === "function") {
         window.__sheetSnapTo("half");
-        // also scroll sidebar to anchor list area
-        setTimeout(() => {
-          const al = document.getElementById("anchorList") || document.getElementById("routePanel");
-          if (al) al.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 350);
       }
     });
   }
@@ -1567,7 +1585,7 @@
       if (!state.walking.enabled) {
         state.walking.enabled = true;
         $("walkingToggle").checked = true;
-        $("walkingBody").classList.add("open");
+        $("walkingSettings").classList.add("walking-enabled");
       }
       // 清空現有 anchors，只剩一個 geo
       state.walking.anchors = state.walking.anchors.filter(a => a.mode !== "geo");
@@ -1601,9 +1619,16 @@
     });
 
     // -------- 步行圈 events --------
+    // P1-3: the checkbox lives inside the <summary>. Stop its click from
+    // bubbling so ticking 步行圈 does NOT toggle the <details> open/closed.
+    const wt = document.getElementById("walkingToggle");
+    if (wt) wt.closest(".walking-toggle").addEventListener("click", (e) => e.stopPropagation());
+
     $("walkingToggle").addEventListener("change", (e) => {
       state.walking.enabled = e.target.checked;
-      $("walkingBody").classList.toggle("open", state.walking.enabled);
+      // P1-3: toggle visibility of the ⚙ 設定 summary; P0-1: do NOT open <details>.
+      $("walkingSettings").classList.toggle("walking-enabled", state.walking.enabled);
+      if (!state.walking.enabled) $("walkingSettings").open = false;
       if (state.walking.enabled && state.walking.anchors.length === 0) {
         // 預設加一個「地圖中心」anchor
         addAnchor("map");
@@ -1622,6 +1647,12 @@
         updateWalkingUI();
         if (state.walking.enabled) applyFilters();
       });
+    });
+
+    // P1-4: ⓘ explainer (text moved out of inline DOM into this popover)
+    const infoBtn = document.getElementById("walkingInfoBtn");
+    if (infoBtn) infoBtn.addEventListener("click", () => {
+      alert(infoBtn.getAttribute("title") || "");
     });
 
     $("addAnchorMap").addEventListener("click", () => addAnchor("map"));
@@ -3010,7 +3041,13 @@
     const clearBtn = $("clearAnchorsBtn");
     const planBtn = $("planRouteBtn");
     if (clearBtn) clearBtn.disabled = w.anchors.length === 0;
-    if (planBtn) planBtn.disabled = validCount < 2;
+    if (planBtn) {
+      const planAble = validCount >= 2;
+      planBtn.disabled = !planAble;
+      // P1-1: hide entirely when not plannable (needs ≥2 anchors) instead of
+      // showing a prominent disabled button.
+      planBtn.style.display = planAble ? "" : "none";
+    }
 
     if (w.lastError) {
       statusEl.textContent = w.lastError;
@@ -3019,10 +3056,11 @@
     }
 
     const radius = w.minutes * WALK_METRES_PER_MIN;
+    // P1-4: compact inline caption (minutes already shown by the active chip)
     const suffix = validCount === 0 ? "· 未有起點"
-                : validCount === 1 ? "· 1 個起點"
-                : `· ${validCount} 個起點（同時要係範圍內）`;
-    statusEl.textContent = `${w.minutes} 分鐘 ≈ ${radius}m ${suffix}`;
+                : validCount === 1 ? "· 1 起點"
+                : `· ${validCount} 起點`;
+    statusEl.textContent = `≈ ${radius}m ${suffix}`;
   }
 
   function renderWalkingCircles() {
