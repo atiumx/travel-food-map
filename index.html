@@ -1075,7 +1075,10 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
      this media query makes it visible at mobile widths. */
   .filter-toggle-row {
     display: flex; align-items: center; justify-content: flex-start;
-    margin: 0 -14px; padding: 4px 14px 0;
+    /* R6-1: was padding: 4px 14px 0 — missing bottom padding caused the
+       toggle button to be visually cut by walking-panel/budgetPanel that
+       follow .filters. Add bottom padding so the chip is fully visible. */
+    margin: 0 -14px; padding: 4px 14px 8px;
   }
   .filter-toggle-btn {
     display: inline-flex; align-items: center; gap: 6px;
