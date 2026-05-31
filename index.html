@@ -1114,13 +1114,12 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
      - #placeList min-height ensures it always has scrollable real estate.
   */
   .sidebar .filters {
-    flex: 0 1 auto;
-    min-height: 0;
-    /* R6-2: was max-height:45% — too low, expanded scrollHeight ~490px got
-       crushed to 73px, hiding toggle button behind walking-panel. Bump to
-       65% so expanded filters show enough rows; .filters scrolls internally
-       and #placeList min-height drops to 30%. */
-    max-height: 65%;
+    /* R6-3: flex:0 1 auto + min-height:0 + #placeList flex:1 1 auto let
+       placeList grow and crush filters to 73px ignoring its ~490px content.
+       Switch to flex:0 0 auto (no shrink) + explicit max-height so filters
+       can wrap its toggle row and at least one facet-row visibly. */
+    flex: 0 0 auto;
+    max-height: 55dvh;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
@@ -1131,7 +1130,7 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
   }
   .sidebar #placeList {
     flex: 1 1 auto;
-    min-height: 30%;
+    min-height: 120px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     position: relative;
@@ -1143,11 +1142,8 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
      overflow:visible let search input bleed into list, overlapping first
      place-item by ~25px. */
   body.filters-collapsed .sidebar .filters {
-    /* R5-1 v2: force min-content so flexbox cannot crush filters below the
-       real height of search input + toggle btn (~100px), preventing search
-       input from visually overflowing into #placeList area. */
+    /* When collapsed, only search + toggle visible — wrap real content. */
     flex: 0 0 auto;
-    min-height: min-content;
     max-height: none;
     overflow: visible;
   }
