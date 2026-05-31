@@ -1399,6 +1399,7 @@
       if (detailPanel) {
         detailPanel.classList.remove("open");
         detailPanel.classList.remove("expanded");
+        document.body.classList.remove("detail-open");
         document.querySelectorAll(".emoji-marker.selected").forEach(el => el.classList.remove("selected"));
       }
       state.selectedPlaceId = null;
@@ -3200,6 +3201,7 @@
     const panel = $("detailPanel");
     panel.classList.add("open");
     panel.classList.remove("expanded"); // always start at half on mobile
+    document.body.classList.add("detail-open"); // Bug 4 fix: hide main sheet handle when detail is open
     // scroll detail body to top on each open
     const dbody = $("detailBody"); if (dbody) dbody.scrollTop = 0;
 

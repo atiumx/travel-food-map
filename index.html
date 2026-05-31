@@ -923,6 +923,8 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
     background: #c8c4ba;
   }
   .sheet-handle:active { cursor: grabbing; }
+  /* Bug 4 fix: hide main sheet handle when detail panel is open (detail has its own handle) */
+  body.detail-open .sheet-handle { display: none !important; }
 
   /* Mobile: collapse sheet header to minimal height
      - Hide title / role badge / lang / theme on mobile (re-accessible via long-press or top corners later)
@@ -951,11 +953,11 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
     -webkit-backdrop-filter: blur(8px);
     color: #1a1a1a;
     border: 1px solid rgba(0,0,0,0.12);
-    font-size: 12px;
-    padding: 6px 8px;
-    border-radius: 8px;
+    font-size: 13px;
+    padding: 10px 12px;
+    border-radius: 10px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-    min-height: 36px;
+    min-height: 44px;
     transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
   }
   /* Hide map style picker when sheet covers map */
@@ -979,12 +981,12 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
     -webkit-backdrop-filter: blur(8px);
     color: #1a1a1a;
     border: 1px solid rgba(0,0,0,0.12);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
-    padding: 8px 12px;
-    border-radius: 8px;
+    padding: 10px 14px;
+    border-radius: 10px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-    min-height: 36px;
+    min-height: 44px;
     transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
   }
   body.fab-hidden .filters #tripAreaSelect {
