@@ -669,6 +669,7 @@
   async function init() {
     populateCategorySelects();
     bindEvents();
+    setupOnboarding();
     // K1: theme
     applyTheme();
     const themeBtn = document.getElementById("themeToggle");
@@ -697,6 +698,65 @@
     setupOnlineStatus();
     // F: mobile gestures + bottom sheet + zoom relocation
     initMobile();
+  }
+
+  // -----------------------------------------------------------
+  // Onboarding modal: tabs + first-visit auto-show + ? reopen
+  // -----------------------------------------------------------
+  function setupOnboarding() {
+    const modal = document.getElementById("onboardingModal");
+    if (!modal) return;
+
+    const tabs = modal.querySelectorAll(".onboarding-tab");
+    const panes = modal.querySelectorAll(".onboarding-pane");
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const name = tab.getAttribute("data-tab");
+        tabs.forEach((t) => t.classList.toggle("active", t === tab));
+        panes.forEach((p) => p.classList.toggle("active", p.getAttribute("data-pane") === name));
+      });
+    });
+
+    const closeBtn = document.getElementById("onboardingClose");
+    if (closeBtn) closeBtn.addEventListener("click", () => closeModal("onboardingModal"));
+    // backdrop click closes
+    modal.addEventListener("click", (e) => { if (e.target === modal) closeModal("onboardingModal"); });
+
+    const helpBtn = document.getElementById("onboardingHelpBtn");
+    if (helpBtn) helpBtn.addEventListener("click", () => openModal("onboardingModal"));
+
+    // standalone (A2HS) detection → mark install pane as already-done
+    const standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+                       window.navigator.standalone === true;
+    if (standalone) {
+      const note = document.getElementById("onboardingAlreadyInstalled");
+      if (note) note.hidden = false;
+    }
+
+    // invite tab → reuse shared verify helper
+    const confirmBtn = document.getElementById("onboardingInviteConfirm");
+    if (confirmBtn) {
+      confirmBtn.addEventListener("click", async () => {
+        const msg = document.getElementById("onboardingInviteMsg");
+        const code = document.getElementById("onboardingInviteInput").value.trim();
+        const name = document.getElementById("onboardingNameInput").value.trim();
+        const res = await applyInviteCode(code, name);
+        if (msg) {
+          msg.hidden = false;
+          msg.textContent = res.ok ? "✓ 驗證成功！" : res.error;
+          msg.className = "onboarding-msg " + (res.ok ? "ok" : "err");
+        }
+        if (res.ok) closeModal("onboardingModal");
+      });
+    }
+
+    // first-visit auto-show
+    try {
+      if (!localStorage.getItem("tfm.onboarded.v1")) {
+        openModal("onboardingModal");
+        localStorage.setItem("tfm.onboarded.v1", "1");
+      }
+    } catch (e) {}
   }
 
   // -----------------------------------------------------------
@@ -1306,11 +1366,17 @@
       }
     } catch (e) { console.warn("nuke failed", e); }
     try {
+      // Remember whether a SW already controlled this page. On the very first
+      // install there is no prior controller, so the controllerchange that
+      // fires from clients.claim() is the initial takeover — reloading then
+      // would discard first-paint UI (e.g. the onboarding modal). Only reload
+      // when an existing controller is replaced by a genuine update.
+      const hadController = !!navigator.serviceWorker.controller;
       const reg = await navigator.serviceWorker.register("sw.js");
-      // Auto-reload once when a new SW takes control (avoids stuck old shell)
+      // Auto-reload once when a NEW SW replaces an existing one (avoids stuck old shell)
       let refreshing = false;
       navigator.serviceWorker.addEventListener("controllerchange", () => {
-        if (refreshing) return;
+        if (refreshing || !hadController) return;
         refreshing = true;
         location.reload();
       });
@@ -3453,27 +3519,31 @@
   // -----------------------------------------------------------
   // Invite code flow
   // -----------------------------------------------------------
-  async function handleInviteConfirm() {
-    const code = $("inviteInput").value.trim();
-    const name = $("displayNameInput").value.trim();
-    const errEl = $("inviteErr");
-    errEl.textContent = "";
-
-    if (!code) { errEl.textContent = "請輸入邀請碼"; return; }
-    if (!name) { errEl.textContent = "請輸入顯示名"; return; }
+  // Shared invite verification: validates code via Supabase RPC and, on success,
+  // applies role/identity. Returns { ok, error } so callers render their own messaging.
+  async function applyInviteCode(code, name) {
+    if (!code) return { ok: false, error: "請輸入邀請碼" };
+    if (!name) return { ok: false, error: "請輸入顯示名" };
 
     const { data, error } = await sb.rpc("verify_invite_code", { p_code: code });
-    if (error) { errEl.textContent = "驗證失敗：" + error.message; return; }
+    if (error) return { ok: false, error: "驗證失敗：" + error.message };
     if (!data || !data.valid) {
       const reason = data ? data.reason : "unknown";
-      errEl.textContent = "邀請碼無效（" + reason + "）";
-      return;
+      return { ok: false, error: "邀請碼無效（" + reason + "）" };
     }
 
     state.inviteCode = code;
     state.displayName = name;
     state.role = (name === cfg.OWNER_DISPLAY_NAME) ? "owner" : "friend";
     updateRoleUI();
+    return { ok: true };
+  }
+
+  async function handleInviteConfirm() {
+    const errEl = $("inviteErr");
+    errEl.textContent = "";
+    const res = await applyInviteCode($("inviteInput").value.trim(), $("displayNameInput").value.trim());
+    if (!res.ok) { errEl.textContent = res.error; return; }
     closeModal("inviteModal");
   }
 

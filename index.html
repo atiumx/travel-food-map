@@ -772,6 +772,53 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
 .modal .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .modal .err { color: var(--accent); font-size: 12px; margin-top: 6px; min-height: 16px; }
 
+/* Onboarding modal */
+.onboarding-content { display: flex; flex-direction: column; padding: 0; }
+.onboarding-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 16px 8px; flex: 0 0 auto;
+}
+.onboarding-header h2 { margin: 0; font-size: 16px; }
+.onboarding-close {
+  border: none; background: transparent; color: var(--text);
+  font-size: 26px; line-height: 1; cursor: pointer;
+  width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+}
+.onboarding-close:active { background: var(--chip-bg); }
+.onboarding-tabs {
+  display: flex; gap: 0; padding: 0 16px; flex: 0 0 auto;
+  border-bottom: 1px solid var(--border);
+}
+.onboarding-tab {
+  flex: 1 1 0; padding: 10px 4px; font-size: 13px; font-family: inherit;
+  border: none; background: transparent; color: var(--muted); cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.onboarding-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.onboarding-body { padding: 16px; overflow-y: auto; flex: 1 1 auto; }
+.onboarding-pane { display: none; }
+.onboarding-pane.active { display: block; }
+.onboarding-steps { margin: 0 0 12px; padding-left: 20px; }
+.onboarding-steps li { margin-bottom: 10px; font-size: 13px; line-height: 1.5; }
+.onboarding-lead { font-size: 13px; line-height: 1.5; margin: 0 0 12px; }
+.onboarding-hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; line-height: 1.4; }
+.onboarding-label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 3px; }
+.onboarding-content input[type="text"] {
+  width: 100%; padding: 8px 10px; font-size: 14px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg);
+  color: var(--text); font-family: inherit;
+}
+#onboardingInviteConfirm { margin-top: 12px; }
+.onboarding-msg { font-size: 12px; margin: 10px 0 0; }
+.onboarding-msg.err { color: var(--accent); }
+.onboarding-msg.ok { color: #2f6f3a; }
+#onboardingHelpBtn {
+  margin-left: 4px; padding: 3px 8px; font-size: 13px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--input-bg); color: var(--text); cursor: pointer;
+}
+
 /* Walking radius panel */
 .walking-panel {
   padding: 10px 16px;
@@ -1608,6 +1655,7 @@ summary.walking-head::-webkit-details-marker { display: none; }
         <option value="dark">🌙 暗色</option>
         <option value="terrain">⛰ 地形</option>
       </select>
+      <button id="onboardingHelpBtn" title="使用說明" aria-label="說明">?</button>
     </header>
 
     <div class="filters">
@@ -1859,6 +1907,52 @@ summary.walking-head::-webkit-details-marker { display: none; }
     <div class="actions">
       <button class="btn" id="inviteCancel">取消</button>
       <button class="btn primary" id="inviteConfirm">確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- Onboarding modal -->
+<div class="modal-bg" id="onboardingModal">
+  <div class="modal onboarding-content">
+    <header class="onboarding-header">
+      <h2>歡迎使用 旅行美食地圖</h2>
+      <button class="onboarding-close" id="onboardingClose" aria-label="關閉">×</button>
+    </header>
+    <nav class="onboarding-tabs">
+      <button type="button" class="onboarding-tab active" data-tab="howto">快速上手</button>
+      <button type="button" class="onboarding-tab" data-tab="install">加入主畫面</button>
+      <button type="button" class="onboarding-tab" data-tab="invite">邀請碼</button>
+    </nav>
+    <div class="onboarding-body">
+      <section class="onboarding-pane active" data-pane="howto">
+        <ol class="onboarding-steps">
+          <li><strong>探索地圖</strong>：拖動地圖、點任何 emoji marker 即見店資料。</li>
+          <li><strong>篩選</strong>：tap 「篩選 ▾」開啟 modal，揀菜系／價位／榮譽／日子，按「套用」即見結果。</li>
+          <li><strong>步行圈</strong>：tap 「步行圈篩選」，設起點同分鐘，map 即時畫圈過濾步行可達餐廳。</li>
+        </ol>
+        <p class="onboarding-hint">💡 想再睇？點 sheet 頂嘅 <strong>?</strong> 隨時重開。</p>
+      </section>
+      <section class="onboarding-pane" data-pane="install">
+        <p class="onboarding-lead">將呢個 app 加入 iPhone 主畫面，仲可以全螢幕用，唔會誤觸刷新或返回。</p>
+        <ol class="onboarding-steps">
+          <li>用 <strong>Safari</strong> 開 atiumx.github.io/travel-food-map/</li>
+          <li>tap 底部 <strong>分享 ⬆</strong> 按鈕</li>
+          <li>滑落揀 <strong>「加入主畫面」</strong></li>
+          <li>tap 右上「加入」→ 主畫面會見到「美食地圖」圖示</li>
+        </ol>
+        <p class="onboarding-hint">✅ 從主畫面開即無 Safari URL bar，唔會誤觸刷新。</p>
+        <p class="onboarding-hint" id="onboardingAlreadyInstalled" hidden>✓ 你已用 standalone 模式開緊，無需再加。</p>
+      </section>
+      <section class="onboarding-pane" data-pane="invite">
+        <p class="onboarding-lead">訪客模式只可瀏覽。輸入邀請碼可解鎖：新增地點、寫評論、加照片。</p>
+        <label class="onboarding-label" for="onboardingInviteInput">邀請碼</label>
+        <input type="text" id="onboardingInviteInput" placeholder="輸入邀請碼" autocomplete="off" autocapitalize="off" />
+        <label class="onboarding-label" for="onboardingNameInput">顯示名（你嘅暱稱）</label>
+        <input type="text" id="onboardingNameInput" maxlength="40" placeholder="你嘅暱稱" autocomplete="off" />
+        <button type="button" id="onboardingInviteConfirm" class="btn primary">驗證</button>
+        <p id="onboardingInviteMsg" class="onboarding-msg" hidden></p>
+        <p class="onboarding-hint">想攞邀請碼？聯絡 app 持有人。</p>
+      </section>
     </div>
   </div>
 </div>
