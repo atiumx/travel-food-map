@@ -499,6 +499,14 @@
   // -----------------------------------------------------------
   const map = L.map("map", { zoomControl: true }).setView([33.5904, 130.4017], 13);
 
+  // Bug 2 fix: dim FAB when zoomed out so emoji markers nearby stay tappable
+  function _updateMapZoomClass() {
+    const z = map.getZoom();
+    document.body.classList.toggle("map-zoom-low", z <= 12);
+  }
+  map.on("zoomend", _updateMapZoomClass);
+  _updateMapZoomClass();
+
   // -----------------------------------------------------------
   // K2: Map style switcher (OSM / Satellite / Dark / Terrain)
   // -----------------------------------------------------------
@@ -727,6 +735,15 @@
       const collapsed = document.body.classList.toggle("filters-collapsed");
       btn.setAttribute("aria-expanded", String(!collapsed));
       btn.querySelector(".chev").textContent = collapsed ? "▾" : "▴";
+      // Bug 5 fix: when expanding filters, auto-snap sheet to half so user sees content
+      if (!collapsed) {
+        const sb = document.querySelector(".sidebar");
+        if (sb && !sb.classList.contains("snap-full") && !sb.classList.contains("snap-half")) {
+          sb.classList.add("snap-half");
+          document.body.classList.add("sheet-half");
+          if (typeof updateSheetState === "function") updateSheetState();
+        }
+      }
       haptic(8);
     });
     refreshFilterToggleBadge();

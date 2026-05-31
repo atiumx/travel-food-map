@@ -840,22 +840,30 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
     transform: translateY(8px);
   }
   .map-fab {
-    width: 48px; height: 48px; border-radius: 24px;
+    width: 44px; height: 44px; border-radius: 22px;
     border: 1px solid var(--border);
-    background: rgba(255,255,255,0.96);
+    background: rgba(255,255,255,0.88);
     color: var(--ink);
-    font-size: 20px; line-height: 1;
+    font-size: 18px; line-height: 1;
     box-shadow: 0 4px 12px rgba(0,0,0,0.18);
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+    opacity: 0.85;
+    transition: opacity 0.2s, transform 0.15s, background 0.15s;
   }
+  .map-fab:hover, .map-fab:focus { opacity: 1; background: rgba(255,255,255,1); }
   .map-fab.active {
     background: var(--accent);
     color: #fff;
     border-color: var(--accent);
+    opacity: 1;
   }
-  .map-fab:active { transform: scale(0.92); }
+  .map-fab:active { transform: scale(0.92); opacity: 1; }
+  /* Dim FAB further when zoomed out (cluster view) so markers around stay visible */
+  body.map-zoom-low .map-fab-stack { opacity: 0.55; }
+  body.map-zoom-low .map-fab-stack:hover,
+  body.map-zoom-low .map-fab-stack:focus-within { opacity: 1; }
 }
 
 /* ===================================================================
