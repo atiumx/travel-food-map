@@ -993,6 +993,14 @@
     });
     window.addEventListener("resize", updateFabFromSheet);
     window.addEventListener("orientationchange", () => setTimeout(updateFabFromSheet, 100));
+
+    // R7 fix: prevent UA auto-scroll on <input> focus (e.g. walking checkbox click)
+    // from scrolling the sidebar itself and pushing #sheetHandle out of viewport.
+    // sidebar has overflow:hidden but is still programmatically scrollable; pin to 0.
+    sheet.addEventListener("scroll", () => {
+      if (sheet.scrollTop !== 0) sheet.scrollTop = 0;
+      if (sheet.scrollLeft !== 0) sheet.scrollLeft = 0;
+    }, { passive: true });
   }
 
   // ---- Move Leaflet zoom to bottom-right on mobile ----
