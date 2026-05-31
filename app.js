@@ -736,11 +736,17 @@
       btn.setAttribute("aria-expanded", String(!collapsed));
       btn.querySelector(".chev").textContent = collapsed ? "▾" : "▴";
       // Bug 5 fix: when expanding filters, auto-snap sheet to half so user sees content
+      // Bug C fix (Round 2): go through central snapTo so sheet-peek/sheet-half/sheet-full stay mutually exclusive on <body>
       if (!collapsed) {
         const sb = document.querySelector(".sidebar");
         if (sb && !sb.classList.contains("snap-full") && !sb.classList.contains("snap-half")) {
-          sb.classList.add("snap-half");
-          document.body.classList.add("sheet-half");
+          if (typeof window.__sheetSnapTo === "function") {
+            window.__sheetSnapTo("half");
+          } else {
+            sb.classList.add("snap-half");
+            document.body.classList.remove("sheet-peek", "sheet-full");
+            document.body.classList.add("sheet-half");
+          }
           if (typeof updateSheetState === "function") updateSheetState();
         }
       }
@@ -1572,6 +1578,8 @@
       const panel = $("detailPanel");
       panel.classList.remove("open");
       panel.classList.remove("expanded");
+      // Bug A fix (Round 2): clear detail-open from <body> so sheet-handle reappears & state is consistent
+      document.body.classList.remove("detail-open");
       // G3e: clear marker selection
       document.querySelectorAll(".emoji-marker.selected").forEach(el => el.classList.remove("selected"));
     }
