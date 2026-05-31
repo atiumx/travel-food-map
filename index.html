@@ -768,6 +768,10 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
 .walking-toggle input { cursor: pointer; }
 .walking-body { display: none; flex-direction: column; gap: 8px; }
 .walking-body.open { display: flex; }
+/* R7b: cap walking-body height on mobile so it doesn't crush #placeList */
+@media (max-width: 760px) {
+  .walking-body.open { max-height: 32dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+}
 .walking-body .label {
   font-size: 11px; color: var(--muted); margin-bottom: 2px;
 }
@@ -1119,7 +1123,7 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
        Switch to flex:0 0 auto (no shrink) + explicit max-height so filters
        can wrap its toggle row and at least one facet-row visibly. */
     flex: 0 0 auto;
-    max-height: 55dvh;
+    max-height: 40dvh;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
@@ -1128,9 +1132,16 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
     position: relative;
     z-index: 2;
   }
+  /* R7b: walking-panel itself capped, so its internal walking-body cap composes */
+  .sidebar .walking-panel {
+    flex: 0 0 auto;
+    max-height: 38dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   .sidebar #placeList {
     flex: 1 1 auto;
-    min-height: 120px;
+    min-height: 140px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     position: relative;
