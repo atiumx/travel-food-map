@@ -1102,6 +1102,34 @@ body[data-theme="dark"] .quick-verify-btn:hover { background: #5a4928; }
     display: none !important;
   }
 
+  /* ---- R4-1/R4-2: mobile sheet scroll fix ----
+     Bug: .sidebar overflow:hidden + flex column + .filters auto-height (615px)
+     squeezed #placeList to 8px height and pushed it outside viewport.
+     Fix:
+     - .filters becomes a scrollable region itself, capped at 45% of sheet,
+       with min-height:0 so flexbox can shrink it.
+     - #placeList min-height ensures it always has scrollable real estate.
+  */
+  .sidebar .filters {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: 45%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sidebar #placeList {
+    flex: 1 1 auto;
+    min-height: 40%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* When filters collapsed, give 100% to placeList */
+  body.filters-collapsed .sidebar .filters {
+    max-height: none;
+    overflow: visible;
+  }
+
   /* ---- F2-6 + G1-1: horizontal scrolling filter chip row, fixed widths ---- */
   .filter-row {
     display: flex;
