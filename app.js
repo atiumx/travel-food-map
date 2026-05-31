@@ -3102,6 +3102,7 @@
     $("detailNote").textContent = p.note || "";
 
     // links（兼容兩種 schema：舊 jsonb p.links + 新 individual columns）
+    // 注意：Google Maps 已經由 renderPlaceDeeplinks() 嘅 chip 處理，呢度唔再重複
     const links = [];
     const lk = p.links || {};
     const gUrl = p.google_url || lk.maps;
@@ -3109,14 +3110,15 @@
     const igUrl = p.instagram_url || lk.ig;
     const fbUrl = p.facebook_url || lk.fb;
     const blogUrl = p.blog_url || lk.blog;
-    if (gUrl)    links.push(`<a href="${escapeHtml(gUrl)}" target="_blank" rel="noopener">Google Maps</a>`);
     if (tUrl)    links.push(`<a href="${escapeHtml(tUrl)}" target="_blank" rel="noopener">Tabelog</a>`);
     if (igUrl)   links.push(`<a href="${escapeHtml(igUrl)}" target="_blank" rel="noopener">IG</a>`);
     if (fbUrl)   links.push(`<a href="${escapeHtml(fbUrl)}" target="_blank" rel="noopener">FB</a>`);
     if (blogUrl) links.push(`<a href="${escapeHtml(blogUrl)}" target="_blank" rel="noopener">Blog</a>`);
-    // 永遠加一個 Google 搜尋 fallback（按名）
-    const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(p.name)}`;
-    if (!gUrl) links.push(`<a href="${searchUrl}" target="_blank" rel="noopener">Maps 搜尋</a>`);
+    // 如果完全冇 google_url 同任何 link，先 fallback 一個搜尋（保險，雖然 deeplink chip 都有）
+    if (!gUrl && links.length === 0) {
+      const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(p.name)}`;
+      links.push(`<a href="${searchUrl}" target="_blank" rel="noopener">Maps 搜尋</a>`);
+    }
     $("detailLinks").innerHTML = links.join("");
 
     // J3: Maps / transit / phone deeplinks
