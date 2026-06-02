@@ -70,6 +70,20 @@
   };
   const DEFAULT_EMOJI = "🍽️";
 
+  // v1.0.58: OSM POI 試點 mapping (amenity → emoji + zh label)
+  const OSM_AMENITY_LABEL = {
+    restaurant: { emoji: "🍽️", zh: "餐廳" },
+    fast_food:  { emoji: "🍔", zh: "快餐" },
+    cafe:       { emoji: "☕", zh: "Cafe" },
+    bar:        { emoji: "🍺", zh: "酒吧" },
+    pub:        { emoji: "🍺", zh: "酒館" },
+    food_court: { emoji: "🍽️", zh: "熟食中心" },
+    ice_cream:  { emoji: "🍦", zh: "雪糕" },
+  };
+  const OSM_DEFAULT_LABEL = { emoji: "📍", zh: "食肆" };
+  // 香港 OSM POI 只喺 zoom >= 這個值才 render，防止 4046 markers 在低 zoom 辟成團
+  const OSM_MIN_ZOOM = 16;
+
   // Bookmark 狀態（localStorage 跟 device 走）
   const BOOKMARK_STORAGE_KEY = "tfm_bookmarks_v1";
   const BOOKMARK_LABEL = { wishlist: "⭐ 想去", been: "✅ 已去", favorite: "❤️ 最愛" };
@@ -139,6 +153,12 @@
 
     // J1: heatmap layer
     heatEnabled: false,
+
+    // v1.0.58: HK OSM POI 試點
+    osmEnabled: false,
+    osmPois: [],            // [{osm_type, osm_id, amenity, name, name_zh, lat, lng, cuisine, addr_full, source_query, ...}]
+    osmMarkers: new Map(),  // "osm_type:osm_id" -> L.marker
+    osmLoaded: false,       // 避免重複 fetch
   };
   state.bookmarks = loadBookmarks();
 
@@ -511,6 +531,10 @@
   map.on("zoomend", _updateMapZoomClass);
   _updateMapZoomClass();
 
+  // v1.0.58: OSM POI zoom-gated rendering
+  map.on("zoomend", () => { if (state.osmEnabled) renderOsmMarkers(); });
+  map.on("moveend", () => { if (state.osmEnabled && map.getZoom() >= OSM_MIN_ZOOM) renderOsmMarkers(); });
+
   // -----------------------------------------------------------
   // K2: Map style switcher (OSM / Satellite / Dark / Terrain)
   // -----------------------------------------------------------
@@ -574,6 +598,9 @@
   // Station layer (toggleable)
   const stationLayer = L.layerGroup();
   const stationMarkers = new Map(); // station_id -> marker
+
+  // v1.0.58: HK OSM POI 狭立圖層（跟 cluster 分開，避免與主 places markers 混同群組）
+  const osmLayer = L.layerGroup();
 
   // -----------------------------------------------------------
   // I4: i18n (zh-TW / en / ja)
@@ -694,6 +721,8 @@
     await loadPlacesForCurrentArea();
     // restoreStateFromURL 已 set filter values，但要 applyFilters 一次
     applyFilters();
+    // v1.0.58: 初始化 OSM toggle row 可見性（只喺 hongkong trip_area 顯示）
+    updateOsmToggleVisibility();
     // 背景 load 站點，唔阻主流程
     loadStations().catch(err => console.warn("loadStations failed", err));
     // PWA: register service worker
@@ -1697,6 +1726,9 @@
       state.selectedPlaceId = null;
       await loadPlacesForCurrentArea();
       if (state.showStations) renderStationMarkers();
+      // v1.0.58: trip_area 變動 → 更新 OSM toggle 可見性 + render
+      updateOsmToggleVisibility();
+      renderOsmMarkers();
     });
     searchInput.addEventListener("input", applyFilters);
     // Merged cuisine+category filter: parse value prefix and sync hidden legacy cuisineGroupFilter
@@ -1829,6 +1861,18 @@
       // delay 為 result click 趕到
       setTimeout(() => { $("stationSearchResults").style.display = "none"; }, 200);
     });
+
+    // v1.0.58: HK OSM POI toggle
+    const osmToggleEl = document.getElementById("osmToggle");
+    if (osmToggleEl) {
+      osmToggleEl.addEventListener("change", async (e) => {
+        state.osmEnabled = e.target.checked;
+        if (state.osmEnabled) {
+          await loadOsmPois();
+        }
+        renderOsmMarkers();
+      });
+    }
 
     $("showStationsToggle").addEventListener("change", (e) => {
       state.showStations = e.target.checked;
@@ -2678,6 +2722,116 @@
 
     // Perf-A: bulk addLayers (markercluster chunkedLoading kicks in)
     if (toAdd.length > 0) cluster.addLayers(toAdd);
+  }
+
+  // -----------------------------------------------------------
+  // v1.0.58: HK OSM POI 試點 helpers
+  // -----------------------------------------------------------
+  // 只喺香港 trip_area 顯示 OSM toggle row
+  function updateOsmToggleVisibility() {
+    const row = document.getElementById("osmToggleRow");
+    if (!row) return;
+    const isHK = state.currentTripAreaSlug === "hongkong";
+    row.style.display = isHK ? "" : "none";
+    if (!isHK && state.osmEnabled) {
+      // 離開 HK 自動關 OSM toggle + 清 markers
+      state.osmEnabled = false;
+      const cb = document.getElementById("osmToggle");
+      if (cb) cb.checked = false;
+      clearOsmMarkers();
+    }
+  }
+
+  async function loadOsmPois() {
+    if (state.osmLoaded) return state.osmPois;
+    try {
+      const { data, error } = await sb
+        .from("osm_pois")
+        .select("osm_type,osm_id,amenity,name,name_zh,lat,lng,cuisine,addr_full,phone,website,opening_hours,source_query")
+        .limit(5000);
+      if (error) { console.error("[osm] load error:", error); return []; }
+      state.osmPois = data || [];
+      state.osmLoaded = true;
+      return state.osmPois;
+    } catch (e) {
+      console.error("[osm] fetch failed:", e);
+      return [];
+    }
+  }
+
+  function clearOsmMarkers() {
+    osmLayer.clearLayers();
+    state.osmMarkers.clear();
+  }
+
+  function buildOsmPopupHtml(p) {
+    const label = OSM_AMENITY_LABEL[p.amenity] || OSM_DEFAULT_LABEL;
+    const displayName = p.name_zh || p.name || "(未命名 POI)";
+    const lines = [];
+    lines.push(`<div style="font-weight:600;font-size:14px;margin-bottom:4px;">${label.emoji} ${escapeHtml(displayName)}</div>`);
+    lines.push(`<div style="font-size:12px;color:#666;margin-bottom:6px;">${label.zh}${p.cuisine ? " · " + escapeHtml(p.cuisine) : ""}</div>`);
+    if (p.addr_full) lines.push(`<div style="font-size:12px;margin-bottom:4px;">📍 ${escapeHtml(p.addr_full)}</div>`);
+    if (p.opening_hours) lines.push(`<div style="font-size:12px;margin-bottom:4px;">🕒 ${escapeHtml(p.opening_hours)}</div>`);
+    if (p.phone) lines.push(`<div style="font-size:12px;margin-bottom:4px;"><a href="tel:${encodeURIComponent(p.phone)}">☎️ ${escapeHtml(p.phone)}</a></div>`);
+    lines.push(`<div style="font-size:11px;color:#999;margin-top:6px;border-top:1px solid #eee;padding-top:4px;">未審核 · 來源 OpenStreetMap · ${escapeHtml(p.source_query || "")}</div>`);
+    return lines.join("");
+  }
+
+  // 簡単 HTML escape (避免 POI name 含 script tag)
+  function escapeHtml(s) {
+    if (s == null) return "";
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function renderOsmMarkers() {
+    // 1. 未 enable / 不是 HK → 全清
+    if (!state.osmEnabled || state.currentTripAreaSlug !== "hongkong") {
+      clearOsmMarkers();
+      if (map.hasLayer(osmLayer)) map.removeLayer(osmLayer);
+      return;
+    }
+    // 2. zoom 不足 → 隱藏 markers (但 layer 保留 attached)
+    if (map.getZoom() < OSM_MIN_ZOOM) {
+      clearOsmMarkers();
+      if (!map.hasLayer(osmLayer)) map.addLayer(osmLayer);
+      return;
+    }
+    // 3. zoom 足 → render 在 viewport 內的 POI (加 padding)
+    if (!map.hasLayer(osmLayer)) map.addLayer(osmLayer);
+    const bounds = map.getBounds().pad(0.2);
+    const newSet = new Set();
+    for (const p of state.osmPois) {
+      if (p.lat == null || p.lng == null) continue;
+      if (!bounds.contains([p.lat, p.lng])) continue;
+      const key = `${p.osm_type}:${p.osm_id}`;
+      newSet.add(key);
+      if (state.osmMarkers.has(key)) continue;
+      const label = OSM_AMENITY_LABEL[p.amenity] || OSM_DEFAULT_LABEL;
+      const icon = L.divIcon({
+        className: "osm-poi-marker",
+        html: `<div style="width:22px;height:22px;border-radius:50%;background:rgba(100,140,200,0.85);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:12px;">${label.emoji}</div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+        popupAnchor: [0, -11],
+      });
+      const m = L.marker([p.lat, p.lng], { icon, riseOnHover: true, keyboard: false });
+      m.bindTooltip(p.name_zh || p.name || "(未命名)", { direction: "top" });
+      m.bindPopup(buildOsmPopupHtml(p), { maxWidth: 280 });
+      state.osmMarkers.set(key, m);
+      osmLayer.addLayer(m);
+    }
+    // 移除超出 viewport 嘅 markers
+    for (const [key, m] of state.osmMarkers) {
+      if (!newSet.has(key)) {
+        osmLayer.removeLayer(m);
+        state.osmMarkers.delete(key);
+      }
+    }
   }
 
   // -----------------------------------------------------------

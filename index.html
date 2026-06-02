@@ -1830,6 +1830,10 @@ summary.walking-head::-webkit-details-marker { display: none; }
         <label class="modal-display-row">
           <input type="checkbox" id="heatToggle" /> <span data-i18n="btn.heat">🔥 熱力圖（按評分加權）</span>
         </label>
+        <!-- v1.0.58: HK OSM POI 試點 toggle。只喺 hongkong trip_area 顯示 -->
+        <label class="modal-display-row" id="osmToggleRow" style="display:none;">
+          <input type="checkbox" id="osmToggle" /> <span>🔵 OSM 餐飲 POI（zoom ≥16，未審核）</span>
+        </label>
       </div>
     </div>
     <div class="filter-modal-footer">
