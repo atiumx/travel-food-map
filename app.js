@@ -7,8 +7,8 @@
 // =============================================================
 
 (() => {
-  // v1.0.59: 應用版本號（統一管理，邀請碼 pane 顯示）
-  const APP_VERSION = "v1.0.59";
+  // v1.0.60: 應用版本號（統一管理，邀請碼 pane 顯示）
+  const APP_VERSION = "v1.0.60";
   const APP_BUILD_DATE = "2026-06-03";
   window.__APP_VERSION = APP_VERSION;
 
@@ -750,8 +750,28 @@
       const verEl = document.createElement("div");
       verEl.id = "onboardingVersionInfo";
       verEl.style.cssText = "margin-top:18px;padding-top:10px;border-top:1px solid var(--border,#ddd);font-size:11px;color:var(--text-muted,#888);text-align:center;line-height:1.6";
-      verEl.innerHTML = `版本 <strong>${APP_VERSION}</strong> · ${APP_BUILD_DATE}<br><span style="font-size:10px;opacity:0.7">SW: <span id="onboardingSwVer">checking…</span></span>`;
+      verEl.innerHTML = `版本 <strong>${APP_VERSION}</strong> · ${APP_BUILD_DATE}<br><span style="font-size:10px;opacity:0.7">SW: <span id="onboardingSwVer">checking…</span></span><br><span id="onboardingOsmDebug" style="font-size:10px;opacity:0.7">OSM: 未初始化</span>`;
       invitePane.appendChild(verEl);
+      // v1.0.60: 每次開 modal 刷新 OSM debug
+      const refreshOsmDebug = () => {
+        const el = document.getElementById("onboardingOsmDebug");
+        if (!el) return;
+        const d = window.__osmDebug;
+        const row = document.getElementById("osmToggleRow");
+        const inDom = !!row;
+        const computedDisplay = row ? getComputedStyle(row).display : "(no row)";
+        const inlineDisplay = row ? (row.style.display || "(empty)") : "(no row)";
+        const parent = row && row.parentElement ? (row.parentElement.id || row.parentElement.className) : "(no parent)";
+        el.innerHTML = `OSM row: dom=${inDom} · inline=${inlineDisplay} · computed=${computedDisplay}<br>slug=${state.currentTripAreaSlug} · parent=${parent}<br>debug=${d ? JSON.stringify(d).slice(0,120) : "(未計算)"}`;
+      };
+      // Hook 落 modal 開關
+      const obm = document.getElementById("onboardingModal");
+      if (obm) {
+        const mo = new MutationObserver(() => { if (obm.classList.contains("show") || !obm.hidden) refreshOsmDebug(); });
+        mo.observe(obm, { attributes: true, attributeFilter: ["class", "hidden", "style"] });
+      }
+      // 初次 render 即刷一次
+      setTimeout(refreshOsmDebug, 100);
       // 以 async 枚讉 SW 實際生效版本
       if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
         try {
@@ -2766,9 +2786,15 @@
   // 只喺香港 trip_area 顯示 OSM toggle row
   function updateOsmToggleVisibility() {
     const row = document.getElementById("osmToggleRow");
-    if (!row) return;
+    if (!row) {
+      window.__osmDebug = { ts: Date.now(), slug: state.currentTripAreaSlug, rowFound: false };
+      console.warn("[osm] updateOsmToggleVisibility: #osmToggleRow not found in DOM");
+      return;
+    }
     const isHK = state.currentTripAreaSlug === "hongkong";
-    row.style.display = isHK ? "" : "none";
+    row.style.display = isHK ? "flex" : "none";
+    window.__osmDebug = { ts: Date.now(), slug: state.currentTripAreaSlug, isHK, rowFound: true, applied: row.style.display };
+    console.log("[osm] updateOsmToggleVisibility:", { slug: state.currentTripAreaSlug, isHK, applied: row.style.display });
     if (!isHK && state.osmEnabled) {
       // 離開 HK 自動關 OSM toggle + 清 markers
       state.osmEnabled = false;
