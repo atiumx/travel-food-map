@@ -494,7 +494,8 @@
   const categoryFilter  = $("categoryFilter");
   const priceFilter     = $("priceFilter");
   const placeListEl     = $("placeList");
-  const inviteBtn       = $("inviteBtn");
+  // v1.0.57: inviteBtn 移除，邀請碼/切換身份歸入 onboarding modal 邀請碼 tab
+  const inviteBtn       = $("inviteBtn"); // may be null after refactor; 保留 reference 防其他地方 access
   const addPlaceBtn     = $("addPlaceBtn");
 
   // -----------------------------------------------------------
@@ -724,8 +725,21 @@
     // backdrop click closes
     modal.addEventListener("click", (e) => { if (e.target === modal) closeModal("onboardingModal"); });
 
+    // v1.0.57: helper — 開 onboarding modal 並切換 tab
+    function openOnboardingTab(tabName) {
+      openModal("onboardingModal");
+      if (!tabName) return;
+      tabs.forEach((t) => t.classList.toggle("active", t.getAttribute("data-tab") === tabName));
+      panes.forEach((p) => p.classList.toggle("active", p.getAttribute("data-pane") === tabName));
+    }
+    // expose 為其他地方 (e.g. inviteBtn handler) 使用
+    window._openOnboardingTab = openOnboardingTab;
+
     const helpBtn = document.getElementById("onboardingHelpBtn");
-    if (helpBtn) helpBtn.addEventListener("click", () => openModal("onboardingModal"));
+    if (helpBtn) helpBtn.addEventListener("click", () => {
+      // 已綁定 → 默認跳到 invite tab 顯示身份狀態；訪客 → 默認「快速上手」
+      openOnboardingTab(state.role !== "guest" ? "invite" : "howto");
+    });
 
     // standalone (A2HS) detection → mark install pane as already-done
     const standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
@@ -1844,12 +1858,33 @@
       applyFilters();
     });
 
-    inviteBtn.addEventListener("click", () => openModal("inviteModal"));
-    $("inviteCancel").addEventListener("click", () => closeModal("inviteModal"));
-    $("inviteConfirm").addEventListener("click", handleInviteConfirm);
-    // v1.0.56: sidebar rename button
-    const sidebarRenameBtn = document.getElementById("sidebarRenameBtn");
-    if (sidebarRenameBtn) sidebarRenameBtn.addEventListener("click", handleRename);
+    // v1.0.57: inviteBtn / sidebarRenameBtn 已移除 (HTML)。
+    // 邀請碼 legacy modal 保留作 handleInviteConfirm() 內部引用，但 UI 口改為 onboarding modal invite tab。
+    if (inviteBtn) inviteBtn.addEventListener("click", () => {
+      if (typeof window._openOnboardingTab === "function") window._openOnboardingTab("invite");
+      else openModal("onboardingModal");
+    });
+    const inviteCancelEl = $("inviteCancel");
+    if (inviteCancelEl) inviteCancelEl.addEventListener("click", () => closeModal("inviteModal"));
+    const inviteConfirmEl = $("inviteConfirm");
+    if (inviteConfirmEl) inviteConfirmEl.addEventListener("click", handleInviteConfirm);
+
+    // v1.0.57: 「切換身份」button — 登出當前邀請碼，回到訪客 + reload (重設 state)
+    const switchBtn = document.getElementById("onboardingSwitchBtn");
+    if (switchBtn) {
+      switchBtn.addEventListener("click", () => {
+        if (!window.confirm("確認登出當前邀請碼？將回到訪客模式。")) return;
+        try {
+          localStorage.removeItem("tfm_invite_code");
+          localStorage.removeItem("tfm_display_name");
+        } catch (e) {}
+        state.inviteCode = null;
+        state.displayName = null;
+        state.role = "guest";
+        showToast("已登出，重新載入中⋯");
+        setTimeout(() => location.reload(), 400);
+      });
+    }
 
     addPlaceBtn.addEventListener("click", () => {
       if (state.role === "guest") return;
@@ -3658,24 +3693,79 @@
   }
 
   // Update all readonly displayName fields
+  // v1.0.57: 重構 — toggle guest/bound view + 填「我嘅邀請碼狀態」 + owner section
   function _syncDisplayNameReadonly() {
     const dn = state.displayName || "";
-    // inviteModal legacy field (now readonly)
+    const bound = !!dn;
+
+    // legacy inviteModal field (still referenced by handleInviteConfirm fallback)
     const legacyDN = $("displayNameInput");
     if (legacyDN) { legacyDN.value = dn; legacyDN.readOnly = true; }
-    // onboarding bound status
+
+    // Toggle guest vs bound view in onboarding invite tab
+    const guestView = document.getElementById("onboardingInviteGuestView");
+    const boundView = document.getElementById("onboardingInviteBoundView");
+    if (guestView) guestView.hidden = bound;
+    if (boundView) boundView.hidden = !bound;
+
+    // Bound status text
     const bindStatus = document.getElementById("onboardingBindStatus");
     if (bindStatus) {
-      bindStatus.textContent = dn ? "已綁定為 " + dn : "";
-      bindStatus.hidden = !dn;
+      const roleLabel = state.role === "owner" ? "維護者" : "朋友";
+      bindStatus.textContent = bound ? ("✓ 已綁定為 " + dn + "（" + roleLabel + "）") : "";
     }
-    const renameBtn = document.getElementById("onboardingRenameBtn");
-    if (renameBtn) renameBtn.hidden = !dn;
-    const nameSection = document.getElementById("onboardingNameSection");
-    if (nameSection) nameSection.hidden = !!dn;
-    // sidebar rename button
-    const sidebarRenameBtn = document.getElementById("sidebarRenameBtn");
-    if (sidebarRenameBtn) sidebarRenameBtn.hidden = !dn;
+
+    // Owner-only section toggle
+    const ownerSec = document.getElementById("onboardingOwnerCodesSection");
+    if (ownerSec) ownerSec.hidden = (state.role !== "owner");
+
+    // Render 「我嘅邀請碼狀態」 (fire-and-forget)
+    if (bound) {
+      _renderMyInviteCodeStatus().catch(() => {});
+    }
+  }
+
+  // v1.0.57: 使用 verify_invite_code RPC 取回使用狀態並渲染「我嘅邀請碼狀態」
+  async function _renderMyInviteCodeStatus() {
+    const body = document.getElementById("onboardingMyCodeBody");
+    if (!body || !state.inviteCode) return;
+    body.innerHTML = "載入中⋯";
+    try {
+      const { data, error } = await sb.rpc("verify_invite_code", { p_code: state.inviteCode });
+      if (error || !data) {
+        body.innerHTML = "<span style='color:var(--danger,#c33)'>取回狀態失敗「" + (error ? error.message : "no_data") + "」</span>";
+        return;
+      }
+      if (!data.valid) {
+        body.innerHTML = "<span style='color:var(--danger,#c33)'>邀請碼已失效（" + (data.reason || "unknown") + "）</span>";
+        return;
+      }
+      // verify_invite_code returns: {valid, display_name, label?, use_count?, max_uses?, expires_at?}
+      const masked = state.inviteCode.length > 4
+        ? state.inviteCode.slice(0, 2) + "•".repeat(state.inviteCode.length - 4) + state.inviteCode.slice(-2)
+        : "•".repeat(state.inviteCode.length);
+      const rows = [];
+      rows.push("<div><b>碼</b>：<code>" + escapeHtml(masked) + "</code></div>");
+      rows.push("<div><b>顯示名</b>：" + escapeHtml(data.display_name || state.displayName || "") + "</div>");
+      if (data.label) rows.push("<div><b>標籤</b>：" + escapeHtml(data.label) + "</div>");
+      if (typeof data.use_count === "number") {
+        const max = (data.max_uses != null) ? data.max_uses : "∞";
+        rows.push("<div><b>使用次數</b>：" + data.use_count + " / " + max + "</div>");
+      }
+      if (data.expires_at) {
+        try {
+          const d = new Date(data.expires_at);
+          rows.push("<div><b>到期</b>：" + d.toLocaleString("zh-TW", { hour12: false }) + "</div>");
+        } catch (e) {
+          rows.push("<div><b>到期</b>：" + escapeHtml(String(data.expires_at)) + "</div>");
+        }
+      } else {
+        rows.push("<div><b>到期</b>：無期限</div>");
+      }
+      body.innerHTML = rows.join("");
+    } catch (e) {
+      body.innerHTML = "<span style='color:var(--danger,#c33)'>取回狀態異常：" + escapeHtml(String(e)) + "</span>";
+    }
   }
 
   // --- Legacy wrapper for inviteModal confirm button ---
@@ -3774,7 +3864,8 @@
     $("addReviewBtn").disabled = !canWrite;
     $("addSuggestionBtn").disabled = !canWrite;
     $("placePhotoBtn").disabled = !canWrite;
-    inviteBtn.textContent = canWrite ? "切換身份" : "輸入邀請碼";
+    // v1.0.57: inviteBtn 已移除 (歸入 onboarding modal)。保留 null-safe 設定以防其他地方引用。
+    if (inviteBtn) inviteBtn.textContent = canWrite ? "切換身份" : "輸入邀請碼";
   }
 
   // -----------------------------------------------------------

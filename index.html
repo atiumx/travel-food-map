@@ -1663,7 +1663,7 @@ summary.walking-head::-webkit-details-marker { display: none; }
     <header>
       <h1 data-i18n="app.title">旅行美食地圖</h1>
       <span id="roleBadge" class="role-badge guest" data-i18n="role.guest">訪客</span>
-      <button id="sidebarRenameBtn" class="btn" hidden title="改名" style="margin-left:4px;padding:2px 7px;font-size:11px;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);cursor:pointer;">改名</button>
+      <!-- v1.0.57: sidebarRenameBtn 已移除，改名功能歸入「?」menu 邀請碼 tab -->
       <select id="langSwitch" title="Language" aria-label="Language" style="margin-left:6px;padding:3px 6px;font-size:11px;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);">
         <option value="zh-TW">繁中</option>
         <option value="en">EN</option>
@@ -1809,7 +1809,7 @@ summary.walking-head::-webkit-details-marker { display: none; }
     </div>
 
     <div class="footer-actions">
-      <button class="btn" id="inviteBtn">輸入邀請碼</button>
+      <!-- v1.0.57: inviteBtn 已移除，輸入邀請碼/切換身份功能歸入「?」menu 邀請碼 tab -->
       <button class="btn primary" id="addPlaceBtn" disabled>新增地點</button>
     </div>
   </aside>
@@ -1965,26 +1965,52 @@ summary.walking-head::-webkit-details-marker { display: none; }
         <p class="onboarding-hint" id="onboardingAlreadyInstalled" hidden>✓ 你已用 standalone 模式開緊，無需再加。</p>
       </section>
       <section class="onboarding-pane" data-pane="invite">
-        <p class="onboarding-lead">訪客模式只可瀏覽。輸入邀請碼可解鎖：新增地點、寫評論、加照片。</p>
+        <!-- =============================================================
+             GUEST VIEW: 未綁定（state.role === 'guest'）
+             ============================================================= -->
+        <div id="onboardingInviteGuestView">
+          <p class="onboarding-lead">訪客模式只可瀏覽。輸入邀請碼可解鎖：新增地點、寫評論、加照片。</p>
 
-        <!-- Step 1: verify code -->
-        <label class="onboarding-label" for="onboardingInviteInput">邀請碼</label>
-        <input type="text" id="onboardingInviteInput" placeholder="輸入邀請碼" autocomplete="off" autocapitalize="off" />
-        <button type="button" id="onboardingInviteConfirm" class="btn primary" style="margin-top:8px">驗證</button>
+          <label class="onboarding-label" for="onboardingInviteInput">邀請碼</label>
+          <input type="text" id="onboardingInviteInput" placeholder="輸入邀請碼" autocomplete="off" autocapitalize="off" />
+          <button type="button" id="onboardingInviteConfirm" class="btn primary" style="margin-top:8px">驗證</button>
 
-        <!-- Step 2: bind name (hidden until needs_name) -->
-        <div id="onboardingNameSection" hidden style="margin-top:12px">
-          <label class="onboarding-label" for="onboardingNameInput">設定顯示名（1–40 字，唯一綁定）</label>
-          <input type="text" id="onboardingNameInput" maxlength="40" placeholder="你嘅暱稱" autocomplete="off" />
-          <button type="button" id="onboardingBindBtn" class="btn primary" style="margin-top:8px">綁定</button>
+          <!-- Step 2: bind name (hidden until needs_name) -->
+          <div id="onboardingNameSection" hidden style="margin-top:12px">
+            <label class="onboarding-label" for="onboardingNameInput">設定顯示名（1–40 字，唯一綁定）</label>
+            <input type="text" id="onboardingNameInput" maxlength="40" placeholder="你嘅暱稱" autocomplete="off" />
+            <button type="button" id="onboardingBindBtn" class="btn primary" style="margin-top:8px">綁定</button>
+          </div>
+
+          <p class="onboarding-hint" style="margin-top:10px">想攞邀請碼？聯絡 app 持有人。</p>
         </div>
 
-        <!-- Bound state: shown when already bound -->
-        <p id="onboardingBindStatus" class="onboarding-msg ok" hidden style="margin-top:10px"></p>
-        <button type="button" id="onboardingRenameBtn" class="btn" hidden style="margin-top:6px">改名</button>
+        <!-- =============================================================
+             BOUND VIEW: 已綁定（state.role === 'friend' / 'owner'）
+             ============================================================= -->
+        <div id="onboardingInviteBoundView" hidden>
+          <p id="onboardingBindStatus" class="onboarding-msg ok" style="margin:0 0 12px 0"></p>
 
-        <p id="onboardingInviteMsg" class="onboarding-msg" hidden></p>
-        <p class="onboarding-hint">想攞邀請碼？聯絡 app 持有人。</p>
+          <div class="onboarding-action-group">
+            <button type="button" id="onboardingRenameBtn" class="btn" style="width:100%;margin-bottom:8px">改名</button>
+            <button type="button" id="onboardingSwitchBtn" class="btn" style="width:100%;margin-bottom:8px">切換身份（登出當前邀請碼）</button>
+          </div>
+
+          <details id="onboardingMyCodeSection" style="margin-top:12px;border:1px solid var(--border);border-radius:6px;padding:8px;">
+            <summary style="cursor:pointer;font-size:13px;font-weight:600">我嘅邀請碼狀態</summary>
+            <div id="onboardingMyCodeBody" style="margin-top:8px;font-size:12px;color:var(--text-muted, #888)">載入中⋯</div>
+          </details>
+
+          <!-- Owner-only: 管理所有邀請碼。Hidden by default; toggled by app.js when state.role === 'owner'. -->
+          <details id="onboardingOwnerCodesSection" hidden style="margin-top:8px;border:1px solid var(--border);border-radius:6px;padding:8px;">
+            <summary style="cursor:pointer;font-size:13px;font-weight:600">⚙ 管理邀請碼（owner only）</summary>
+            <div id="onboardingOwnerCodesBody" style="margin-top:8px;font-size:12px;color:var(--text-muted, #888)">
+              <p class="onboarding-hint" style="margin:0">後端 RPC 仲未實裝。下一階段同 Feature B 一齊上 migration（list_owner_invite_codes / create_invite_code / toggle_invite_code_active）。</p>
+            </div>
+          </details>
+        </div>
+
+        <p id="onboardingInviteMsg" class="onboarding-msg" hidden style="margin-top:10px"></p>
       </section>
     </div>
   </div>
