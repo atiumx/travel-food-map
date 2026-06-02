@@ -7,6 +7,11 @@
 // =============================================================
 
 (() => {
+  // v1.0.59: 應用版本號（統一管理，邀請碼 pane 顯示）
+  const APP_VERSION = "v1.0.59";
+  const APP_BUILD_DATE = "2026-06-03";
+  window.__APP_VERSION = APP_VERSION;
+
   const cfg = window.APP_CONFIG;
   const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
 
@@ -738,6 +743,37 @@
   function setupOnboarding() {
     const modal = document.getElementById("onboardingModal");
     if (!modal) return;
+
+    // v1.0.59: 在邀請碼 pane 底部 inject 版本號（便於 cache debug）
+    const invitePane = modal.querySelector('.onboarding-pane[data-pane="invite"]');
+    if (invitePane && !document.getElementById("onboardingVersionInfo")) {
+      const verEl = document.createElement("div");
+      verEl.id = "onboardingVersionInfo";
+      verEl.style.cssText = "margin-top:18px;padding-top:10px;border-top:1px solid var(--border,#ddd);font-size:11px;color:var(--text-muted,#888);text-align:center;line-height:1.6";
+      verEl.innerHTML = `版本 <strong>${APP_VERSION}</strong> · ${APP_BUILD_DATE}<br><span style="font-size:10px;opacity:0.7">SW: <span id="onboardingSwVer">checking…</span></span>`;
+      invitePane.appendChild(verEl);
+      // 以 async 枚讉 SW 實際生效版本
+      if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+        try {
+          const mc = new MessageChannel();
+          mc.port1.onmessage = (evt) => {
+            const swEl = document.getElementById("onboardingSwVer");
+            if (swEl && evt.data && evt.data.version) swEl.textContent = evt.data.version;
+          };
+          navigator.serviceWorker.controller.postMessage({ type: "GET_VERSION" }, [mc.port2]);
+          setTimeout(() => {
+            const swEl = document.getElementById("onboardingSwVer");
+            if (swEl && swEl.textContent === "checking…") swEl.textContent = "(no response)";
+          }, 1500);
+        } catch (e) {
+          const swEl = document.getElementById("onboardingSwVer");
+          if (swEl) swEl.textContent = "(error)";
+        }
+      } else {
+        const swEl = document.getElementById("onboardingSwVer");
+        if (swEl) swEl.textContent = "(no SW)";
+      }
+    }
 
     const tabs = modal.querySelectorAll(".onboarding-tab");
     const panes = modal.querySelectorAll(".onboarding-pane");

@@ -6,7 +6,7 @@
  *   - Photo storage (food-map-photos object/public): cache-first (immutable URLs)
  *   - Supabase REST/RPC: network-only (always fresh, may fail offline)
  */
-const SW_VERSION = "v1.0.58-osm-poi-toggle";
+const SW_VERSION = "v1.0.59-version-stamp";
 const CACHE_SHELL  = `tfm-shell-${SW_VERSION}`;
 const CACHE_DATA   = `tfm-data-${SW_VERSION}`;
 const CACHE_TILES  = `tfm-tiles`;        // 不带版本，cross-deploy 持久
@@ -259,5 +259,9 @@ self.addEventListener("message", evt => {
     caches.delete(CACHE_TILES).then(() => evt.source.postMessage({ type: "TILES_CLEARED" }));
   } else if (msg.type === "SKIP_WAITING") {
     self.skipWaiting();
+  } else if (msg.type === "GET_VERSION") {
+    // v1.0.59: 輕量 GET_VERSION reply、供邀請碼 pane 顯示 SW 生效版本
+    const port = (evt.ports && evt.ports[0]) || evt.source;
+    if (port && port.postMessage) port.postMessage({ type: "VERSION", version: SW_VERSION });
   }
 });
