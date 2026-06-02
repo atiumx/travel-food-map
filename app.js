@@ -8,7 +8,7 @@
 
 (() => {
   // v1.0.60: 應用版本號（統一管理，邀請碼 pane 顯示）
-  const APP_VERSION = "v1.0.60";
+  const APP_VERSION = "v1.0.61";
   const APP_BUILD_DATE = "2026-06-03";
   window.__APP_VERSION = APP_VERSION;
 
@@ -1007,6 +1007,12 @@
     const filters = document.querySelector(".filters");
     if (!modal || !body || !filters) return;
     if (!modal.hidden) return; // already open
+    // v1.0.60: 開 modal 前 sync state 与 dropdown value（防止 iOS Safari select 不 trigger change）
+    if (tripAreaSelect && tripAreaSelect.value && tripAreaSelect.value !== state.currentTripAreaSlug) {
+      console.log("[osm] openFilterModal: sync state", { dropdown: tripAreaSelect.value, state: state.currentTripAreaSlug });
+      state.currentTripAreaSlug = tripAreaSelect.value;
+    }
+    updateOsmToggleVisibility();
     // Move every .filters child into the modal body EXCEPT the floating area
     // select and the toggle row itself.
     _filterModalMoved = [];
@@ -1627,6 +1633,8 @@
     if (area && state.tripAreas.find(t => t.slug === area)) {
       state.currentTripAreaSlug = area;
       tripAreaSelect.value = area;
+      // v1.0.60: URL set 完 slug 即時刷 OSM toggle
+      if (typeof updateOsmToggleVisibility === "function") updateOsmToggleVisibility();
     }
     const q = params.get("q");      if (q) searchInput.value = q;
     // Merged categoryFilter accepts "cg:<key>", "cat:<sub>" or legacy bare sub-category name.
@@ -2112,6 +2120,8 @@
       tripAreaSelect.value = state.currentTripAreaSlug;
     }
     centerMapOnCurrentArea();
+    // v1.0.60: 不管 default 都要初始化 OSM toggle（避免 init flow race）
+    if (typeof updateOsmToggleVisibility === "function") updateOsmToggleVisibility();
   }
 
   function centerMapOnCurrentArea() {
