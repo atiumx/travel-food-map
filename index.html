@@ -1831,8 +1831,13 @@ summary.walking-head::-webkit-details-marker { display: none; }
           <input type="checkbox" id="heatToggle" /> <span data-i18n="btn.heat">🔥 熱力圖（按評分加權）</span>
         </label>
         <!-- v1.0.58: HK OSM POI 試點 toggle。只喺 hongkong trip_area 顯示 -->
-        <label class="modal-display-row" id="osmToggleRow" style="display:none;">
-          <input type="checkbox" id="osmToggle" /> <span>🔵 OSM 餐飲 POI（zoom ≥16，未審核）</span>
+        <!-- v1.0.62: 動態 zoom band、顯示當前 render mode hint -->
+        <label class="modal-display-row" id="osmToggleRow" style="display:none; align-items: flex-start;">
+          <input type="checkbox" id="osmToggle" style="margin-top:4px;" />
+          <span style="display:flex; flex-direction:column; gap:2px;">
+            <span>🔵 OSM 餐飲 POI（未審核）</span>
+            <span id="osmModeHint" style="font-size:11px; color:var(--muted, #888); font-weight:normal;">未開啟</span>
+          </span>
         </label>
       </div>
     </div>
@@ -2159,7 +2164,7 @@ summary.walking-head::-webkit-details-marker { display: none; }
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <!-- v1.0.61: 主動 cache buster、強制 Safari/Fastly 拿新版 app.js -->
-<script src="./config.js?v=1.0.61"></script>
-<script src="./app.js?v=1.0.61"></script>
+<script src="./config.js?v=1.0.62"></script>
+<script src="./app.js?v=1.0.62"></script>
 </body>
 </html>

@@ -8,7 +8,7 @@
 
 (() => {
   // v1.0.60: 應用版本號（統一管理，邀請碼 pane 顯示）
-  const APP_VERSION = "v1.0.61";
+  const APP_VERSION = "v1.0.62";
   const APP_BUILD_DATE = "2026-06-03";
   window.__APP_VERSION = APP_VERSION;
 
@@ -86,8 +86,14 @@
     ice_cream:  { emoji: "🍦", zh: "雪糕" },
   };
   const OSM_DEFAULT_LABEL = { emoji: "📍", zh: "食肆" };
-  // 香港 OSM POI 只喺 zoom >= 這個值才 render，防止 4046 markers 在低 zoom 辟成團
-  const OSM_MIN_ZOOM = 16;
+  // v1.0.62: zoom 分層 render OSM POI
+  //   zoom < OSM_CLUSTER_MIN_ZOOM (14) → hide 晒
+  //   OSM_CLUSTER_MIN_ZOOM ≤ zoom < OSM_MARKER_MIN_ZOOM (16) → cluster (聚團)
+  //   zoom ≥ OSM_MARKER_MIN_ZOOM (16) → 個別 markers
+  const OSM_CLUSTER_MIN_ZOOM = 14;
+  const OSM_MARKER_MIN_ZOOM = 16;
+  // 正台保留 alias 以充后兼容舊代碼
+  const OSM_MIN_ZOOM = OSM_MARKER_MIN_ZOOM;
 
   // Bookmark 狀態（localStorage 跟 device 走）
   const BOOKMARK_STORAGE_KEY = "tfm_bookmarks_v1";
@@ -538,7 +544,8 @@
 
   // v1.0.58: OSM POI zoom-gated rendering
   map.on("zoomend", () => { if (state.osmEnabled) renderOsmMarkers(); });
-  map.on("moveend", () => { if (state.osmEnabled && map.getZoom() >= OSM_MIN_ZOOM) renderOsmMarkers(); });
+  // v1.0.62: moveend 喺 cluster band (zoom ≥14) 都要 trigger, 否則 pan map 時 cluster 唔會 re-pin
+  map.on("moveend", () => { if (state.osmEnabled && map.getZoom() >= OSM_CLUSTER_MIN_ZOOM) renderOsmMarkers(); });
 
   // -----------------------------------------------------------
   // K2: Map style switcher (OSM / Satellite / Dark / Terrain)
@@ -604,8 +611,18 @@
   const stationLayer = L.layerGroup();
   const stationMarkers = new Map(); // station_id -> marker
 
-  // v1.0.58: HK OSM POI 狭立圖層（跟 cluster 分開，避免與主 places markers 混同群組）
+  // v1.0.58/v1.0.62: HK OSM POI 2 套圖層獨立于主 cluster
+  //   - osmLayer: zoom ≥ 16 個別 markers
+  //   - osmCluster: zoom 14-15 集群顯示（避免 73 markers 撠一團）
   const osmLayer = L.layerGroup();
+  const osmCluster = L.markerClusterGroup({
+    disableClusteringAtZoom: 16,   // 超過 16 就拆開個別
+    maxClusterRadius: 60,           // 比 main cluster 大、令 OSM POI 更易聚
+    showCoverageOnHover: false,
+    spiderfyOnMaxZoom: false,       // zoom 高時不 spider、改由 osmLayer 逆手
+    chunkedLoading: true,
+    removeOutsideVisibleBounds: true,
+  });
 
   // -----------------------------------------------------------
   // I4: i18n (zh-TW / en / ja)
@@ -2833,7 +2850,24 @@
 
   function clearOsmMarkers() {
     osmLayer.clearLayers();
+    osmCluster.clearLayers();
     state.osmMarkers.clear();
+  }
+
+  // v1.0.62: helper —・生一個 OSM marker（被 marker layer 與 cluster 共用）
+  function buildOsmMarker(p) {
+    const label = OSM_AMENITY_LABEL[p.amenity] || OSM_DEFAULT_LABEL;
+    const icon = L.divIcon({
+      className: "osm-poi-marker",
+      html: `<div style="width:22px;height:22px;border-radius:50%;background:rgba(100,140,200,0.85);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:12px;">${label.emoji}</div>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 11],
+      popupAnchor: [0, -11],
+    });
+    const m = L.marker([p.lat, p.lng], { icon, riseOnHover: true, keyboard: false });
+    m.bindTooltip(p.name_zh || p.name || "(未命名)", { direction: "top" });
+    m.bindPopup(buildOsmPopupHtml(p), { maxWidth: 280 });
+    return m;
   }
 
   function buildOsmPopupHtml(p) {
@@ -2860,20 +2894,57 @@
       .replace(/'/g, "&#39;");
   }
 
+  // v1.0.62: 三個 zoom band 動態努切換 render mode
+  //   band A (zoom < 14)  → hide 晒，兩個 layer 都 detach
+  //   band B (14 ≤ zoom < 16) → cluster mode、不用 viewport 裁剪
+  //   band C (zoom ≥ 16) → 個別 markers + viewport culling
   function renderOsmMarkers() {
     // 1. 未 enable / 不是 HK → 全清
     if (!state.osmEnabled || state.currentTripAreaSlug !== "hongkong") {
       clearOsmMarkers();
       if (map.hasLayer(osmLayer)) map.removeLayer(osmLayer);
+      if (map.hasLayer(osmCluster)) map.removeLayer(osmCluster);
+      state.osmRenderMode = "off";
+      updateOsmModeHint();
       return;
     }
-    // 2. zoom 不足 → 隱藏 markers (但 layer 保留 attached)
-    if (map.getZoom() < OSM_MIN_ZOOM) {
+    const z = map.getZoom();
+
+    // band A: zoom < 14 → hide
+    if (z < OSM_CLUSTER_MIN_ZOOM) {
       clearOsmMarkers();
-      if (!map.hasLayer(osmLayer)) map.addLayer(osmLayer);
+      if (map.hasLayer(osmLayer)) map.removeLayer(osmLayer);
+      if (map.hasLayer(osmCluster)) map.removeLayer(osmCluster);
+      state.osmRenderMode = "hidden_low_zoom";
+      updateOsmModeHint();
       return;
     }
-    // 3. zoom 足 → render 在 viewport 內的 POI (加 padding)
+
+    // band B: 14 ≤ zoom < 16 → cluster
+    if (z < OSM_MARKER_MIN_ZOOM) {
+      // 離開 individual mode，清 osmLayer
+      if (map.hasLayer(osmLayer)) map.removeLayer(osmLayer);
+      osmLayer.clearLayers();
+      state.osmMarkers.clear();
+      // 進 cluster mode
+      if (!map.hasLayer(osmCluster)) map.addLayer(osmCluster);
+      // 只在 first time / cluster 空才 build markers (cluster 自己管 culling)
+      if (osmCluster.getLayers().length === 0) {
+        const batch = [];
+        for (const p of state.osmPois) {
+          if (p.lat == null || p.lng == null) continue;
+          batch.push(buildOsmMarker(p));
+        }
+        if (batch.length > 0) osmCluster.addLayers(batch);
+      }
+      state.osmRenderMode = "cluster";
+      updateOsmModeHint();
+      return;
+    }
+
+    // band C: zoom ≥ 16 → individual markers + viewport culling
+    if (map.hasLayer(osmCluster)) map.removeLayer(osmCluster);
+    osmCluster.clearLayers();
     if (!map.hasLayer(osmLayer)) map.addLayer(osmLayer);
     const bounds = map.getBounds().pad(0.2);
     const newSet = new Set();
@@ -2883,27 +2954,41 @@
       const key = `${p.osm_type}:${p.osm_id}`;
       newSet.add(key);
       if (state.osmMarkers.has(key)) continue;
-      const label = OSM_AMENITY_LABEL[p.amenity] || OSM_DEFAULT_LABEL;
-      const icon = L.divIcon({
-        className: "osm-poi-marker",
-        html: `<div style="width:22px;height:22px;border-radius:50%;background:rgba(100,140,200,0.85);border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:12px;">${label.emoji}</div>`,
-        iconSize: [22, 22],
-        iconAnchor: [11, 11],
-        popupAnchor: [0, -11],
-      });
-      const m = L.marker([p.lat, p.lng], { icon, riseOnHover: true, keyboard: false });
-      m.bindTooltip(p.name_zh || p.name || "(未命名)", { direction: "top" });
-      m.bindPopup(buildOsmPopupHtml(p), { maxWidth: 280 });
+      const m = buildOsmMarker(p);
       state.osmMarkers.set(key, m);
       osmLayer.addLayer(m);
     }
-    // 移除超出 viewport 嘅 markers
     for (const [key, m] of state.osmMarkers) {
       if (!newSet.has(key)) {
         osmLayer.removeLayer(m);
         state.osmMarkers.delete(key);
       }
     }
+    state.osmRenderMode = "markers";
+    updateOsmModeHint();
+  }
+
+  // v1.0.62: 更新 toggle row 被重畫 mode hint + debug pane
+  function updateOsmModeHint() {
+    const hintEl = document.getElementById("osmModeHint");
+    if (hintEl) {
+      const z = map ? map.getZoom() : null;
+      const mode = state.osmRenderMode || "-";
+      const text = {
+        off: "未開啟",
+        hidden_low_zoom: `zoom ${z} · 請放大至 14+ 才見到 POI`,
+        cluster: `zoom ${z} · 聚集模式 (放大至 16+ 見個別點)`,
+        markers: `zoom ${z} · 個別 markers (${state.osmMarkers ? state.osmMarkers.size : 0} 在 viewport)`,
+      }[mode] || mode;
+      hintEl.textContent = text;
+    }
+    // 同步 debug pane info
+    window.__osmDebug = Object.assign(window.__osmDebug || {}, {
+      mode: state.osmRenderMode,
+      zoom: map ? map.getZoom() : null,
+      markerCount: state.osmMarkers ? state.osmMarkers.size : 0,
+      clusterCount: osmCluster ? osmCluster.getLayers().length : 0,
+    });
   }
 
   // -----------------------------------------------------------
