@@ -1400,11 +1400,38 @@ summary.walking-head::-webkit-details-marker { display: none; }
     overflow: visible;
   }
   /* R5-3: bottom safe-area + bg for footer-actions (invite/add row) */
+  /* v1.0.67-rc7: footer 改 column layout，submission toolbar 同 addPlaceBtn 上下 stack */
   .sidebar .footer-actions {
+    flex-direction: column !important;
+    gap: 6px !important;
     padding-bottom: calc(10px + var(--sab));
     background: var(--panel);
     position: relative;
     z-index: 2;
+  }
+  /* submission toolbar (owner 看 4 個、friend 看 2 個、guest 看 1 個)
+     用 grid 2-column 避免 squeeze；owner 4 個自然 2×2，其他認隨位 */
+  .sidebar .footer-actions .submission-toolbar {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 6px !important;
+    margin-bottom: 0 !important;
+  }
+  .sidebar .footer-actions .submission-toolbar .submission-btn {
+    flex: none !important;
+    width: 100% !important;
+    min-height: 40px !important;
+    font-size: 13px !important;
+    padding: 8px 6px !important;
+    line-height: 1.25 !important;
+    white-space: normal !important;
+    text-align: center !important;
+  }
+  .sidebar .footer-actions #addPlaceBtn {
+    width: 100% !important;
+    min-height: 44px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
   }
 
   /* ---- F2-6 + G1-1: horizontal scrolling filter chip row, fixed widths ---- */
@@ -2785,9 +2812,9 @@ summary.walking-head::-webkit-details-marker { display: none; }
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <!-- v1.0.61: 主動 cache buster、強制 Safari/Fastly 拿新版 app.js -->
 <!-- v1.0.67-rc1: 拆 feature-b.js + feature-c.js (依賴 window.AppShared, 順序唔可以亂) -->
-<script src="./config.js?v=1.0.67-rc6"></script>
-<script src="./app.js?v=1.0.67-rc6"></script>
-<script src="./feature-b.js?v=1.0.67-rc6"></script>
-<script src="./feature-c.js?v=1.0.67-rc6"></script>
+<script src="./config.js?v=1.0.67-rc7"></script>
+<script src="./app.js?v=1.0.67-rc7"></script>
+<script src="./feature-b.js?v=1.0.67-rc7"></script>
+<script src="./feature-c.js?v=1.0.67-rc7"></script>
 </body>
 </html>
