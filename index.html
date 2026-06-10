@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
 <title>旅行美食地圖</title>
 <meta name="theme-color" content="#d84315" />
 <meta name="description" content="九州 + 大阪美食地圖：步行圈、評論、照片、車站 anchor" />
@@ -1971,7 +1971,7 @@ summary.walking-head::-webkit-details-marker { display: none; }
           </div>
           <div id="routePanel" style="display:none;margin-top:6px;padding:6px;background:#fafafa;border:1px solid var(--border);border-radius:4px;font-size:11px;"></div>
           <div class="station-search-row" style="position:relative;margin-top:4px;">
-            <input id="stationSearchInput" type="text" placeholder="揜車站名（例：博多／難波）" style="width:100%;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:4px;" />
+            <input id="stationSearchInput" type="text" placeholder="揀車站名（例：博多／難波）" style="width:100%;padding:5px 8px;font-size:16px;border:1px solid var(--border);border-radius:4px;" />
             <div id="stationSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--input-bg);border:1px solid var(--border);border-radius:4px;max-height:200px;overflow-y:auto;z-index:1500;font-size:12px;"></div>
           </div>
         </div>
@@ -2743,7 +2743,7 @@ summary.walking-head::-webkit-details-marker { display: none; }
     <div id="appDialogChips" hidden style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
 
     <!-- input area (prompt mode 才顯示) -->
-    <textarea id="appDialogInput" hidden rows="3" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border, #ddd);border-radius:6px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
+    <textarea id="appDialogInput" hidden rows="3" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border, #ddd);border-radius:6px;font-size:16px;font-family:inherit;resize:vertical;"></textarea>
 
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
       <button class="btn" id="appDialogCancel" type="button">取消</button>
@@ -2827,9 +2827,9 @@ summary.walking-head::-webkit-details-marker { display: none; }
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <!-- v1.0.61: 主動 cache buster、強制 Safari/Fastly 拿新版 app.js -->
 <!-- v1.0.67-rc1: 拆 feature-b.js + feature-c.js (依賴 window.AppShared, 順序唔可以亂) -->
-<script src="./config.js?v=1.0.68"></script>
-<script src="./app.js?v=1.0.68"></script>
-<script src="./feature-b.js?v=1.0.68"></script>
-<script src="./feature-c.js?v=1.0.68"></script>
+<script src="./config.js?v=1.0.69"></script>
+<script src="./app.js?v=1.0.69"></script>
+<script src="./feature-b.js?v=1.0.69"></script>
+<script src="./feature-c.js?v=1.0.69"></script>
 </body>
 </html>
