@@ -2099,6 +2099,18 @@ summary.walking-head::-webkit-details-marker { display: none; }
   </div>
   <!-- J3: Maps / transit / phone deeplinks -->
   <div id="detailDeeplinks" style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0;"></div>
+
+  <!-- v1.0.72 #11: 散步等時圈 (ORS) -->
+  <div id="detailWalkingIso" style="margin:8px 0;font-size:12px;">
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+      <span style="color:var(--text-muted,#888);">🚶 散步等時圈：</span>
+      <button type="button" class="chip walking-iso-chip" data-min="5" style="font-size:11px;padding:3px 9px;">5 分</button>
+      <button type="button" class="chip walking-iso-chip" data-min="10" style="font-size:11px;padding:3px 9px;">10 分</button>
+      <button type="button" class="chip walking-iso-chip" data-min="15" style="font-size:11px;padding:3px 9px;">15 分</button>
+      <button type="button" id="detailWalkingIsoClear" class="btn" style="font-size:11px;padding:3px 9px;display:none;">清除</button>
+    </div>
+    <div id="detailWalkingIsoStatus" style="font-size:11px;color:var(--text-muted,#888);margin-top:3px;"></div>
+  </div>
   <div class="links" id="detailLinks"></div>
   <div id="detailNote" style="margin-top:6px;font-size:13px;color:var(--text);"></div>
 
@@ -2442,6 +2454,21 @@ summary.walking-head::-webkit-details-marker { display: none; }
             <div id="onboardingOwnerCodesBody" style="margin-top:8px;font-size:12px;color:var(--text-muted, #888);max-height:50vh;overflow-y:auto;">
               <p class="onboarding-hint" style="margin:0">載入中⋯</p>
             </div>
+          </details>
+
+          <!-- v1.0.72 #11: Owner-only ORS API key (散步等時圈) -->
+          <details id="onboardingOrsSection" hidden style="margin-top:8px;border:1px solid var(--border);border-radius:6px;padding:8px;">
+            <summary style="cursor:pointer;font-size:13px;font-weight:600">🚶 散步等時圈 ORS Key（owner only）</summary>
+            <div style="margin-top:8px;font-size:12px;color:var(--text-muted,#888);line-height:1.5;">
+              <p style="margin:0 0 6px 0;">在 <a href="https://openrouteservice.org/dev/#/signup" target="_blank" rel="noopener" style="color:var(--accent);">openrouteservice.org</a> 免費註冊，dashboard create token。</p>
+              <p style="margin:0 0 6px 0;color:#c33;">⚠ Token 必須設 Referrer restriction：<code style="background:var(--hover-bg,#f5f5f5);padding:1px 4px;">https://atiumx.github.io/*</code></p>
+            </div>
+            <input id="orsApiKeyInput" type="text" placeholder="貼上 ORS API key" style="width:100%;box-sizing:border-box;margin-top:6px;font-family:monospace;font-size:16px;" autocomplete="off" />
+            <div style="display:flex;gap:6px;margin-top:6px;">
+              <button type="button" id="orsApiKeySave" class="btn primary" style="font-size:12px;padding:4px 10px;">儲存</button>
+              <button type="button" id="orsApiKeyClear" class="btn" style="font-size:12px;padding:4px 10px;">清除</button>
+            </div>
+            <div id="orsApiKeyStatus" style="font-size:11px;color:var(--text-muted,#888);margin-top:4px;"></div>
           </details>
         </div>
 
@@ -2847,9 +2874,9 @@ summary.walking-head::-webkit-details-marker { display: none; }
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <!-- v1.0.61: 主動 cache buster、強制 Safari/Fastly 拿新版 app.js -->
 <!-- v1.0.67-rc1: 拆 feature-b.js + feature-c.js (依賴 window.AppShared, 順序唔可以亂) -->
-<script src="./config.js?v=1.0.71"></script>
-<script src="./app.js?v=1.0.71"></script>
-<script src="./feature-b.js?v=1.0.71"></script>
-<script src="./feature-c.js?v=1.0.71"></script>
+<script src="./config.js?v=1.0.72"></script>
+<script src="./app.js?v=1.0.72"></script>
+<script src="./feature-b.js?v=1.0.72"></script>
+<script src="./feature-c.js?v=1.0.72"></script>
 </body>
 </html>

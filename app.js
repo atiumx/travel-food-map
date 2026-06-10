@@ -8,8 +8,8 @@
 
 (() => {
   // v1.0.60: 應用版本號（統一管理，邀請碼 pane 顯示）
-  const APP_VERSION = "v1.0.71";
-  const APP_BUILD_DATE = "2026-06-10";
+  const APP_VERSION = "v1.0.72";
+  const APP_BUILD_DATE = "2026-06-11";
   window.__APP_VERSION = APP_VERSION;
 
   const cfg = window.APP_CONFIG;
@@ -800,6 +800,210 @@
     try { FeatureB.init(); } catch (e) { console.warn("FeatureB.init failed", e); }
     // v1.0.66 Feature C: invite code management (split to feature-c.js in v1.0.67-rc1)
     try { FeatureC.init(); } catch (e) { console.warn("FeatureC.init failed", e); }
+    // v1.0.72 #11: ORS walking isochrone
+    try { _orsInit(); } catch (e) { console.warn("orsInit failed", e); }
+  }
+
+  // -----------------------------------------------------------
+  // v1.0.72 #11: ORS walking isochrone (openrouteservice.org public API)
+  // -----------------------------------------------------------
+  const ORS_ENDPOINT = "https://api.openrouteservice.org/v2/isochrones/foot-walking";
+  const ORS_KEY_LS = "tfm_ors_api_key";
+  const ORS_QUOTA_LS = "tfm_ors_quota";
+  const ORS_DAILY_LIMIT = 2000;
+  const ORS_CACHE_TTL_MS = 5 * 60 * 1000;
+
+  function _orsGetApiKey() {
+    try { return localStorage.getItem(ORS_KEY_LS) || ""; } catch (e) { return ""; }
+  }
+  function _orsSetApiKey(k) {
+    try { if (k) localStorage.setItem(ORS_KEY_LS, k); else localStorage.removeItem(ORS_KEY_LS); } catch (e) {}
+  }
+  function _orsTodayKey() {
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+  function _orsGetQuota() {
+    try {
+      const raw = localStorage.getItem(ORS_QUOTA_LS);
+      if (!raw) return { date: _orsTodayKey(), count: 0 };
+      const obj = JSON.parse(raw);
+      if (obj.date !== _orsTodayKey()) return { date: _orsTodayKey(), count: 0 };
+      return obj;
+    } catch (e) { return { date: _orsTodayKey(), count: 0 }; }
+  }
+  function _orsBumpQuota() {
+    const q = _orsGetQuota();
+    q.count += 1;
+    try { localStorage.setItem(ORS_QUOTA_LS, JSON.stringify(q)); } catch (e) {}
+    return q;
+  }
+
+  function _renderOrsKeyStatus() {
+    const input = document.getElementById("orsApiKeyInput");
+    const status = document.getElementById("orsApiKeyStatus");
+    if (!input || !status) return;
+    const key = _orsGetApiKey();
+    if (key) {
+      // Mask key (show first 6 + last 4)
+      const masked = key.length > 14 ? key.slice(0,6) + "…" + key.slice(-4) : key.slice(0,4) + "…";
+      input.placeholder = masked;
+      input.value = "";
+      const q = _orsGetQuota();
+      status.innerHTML = "✓ 已儲存 (" + escapeHtml(masked) + ") · 今日用量 " + q.count + " / " + ORS_DAILY_LIMIT;
+    } else {
+      input.placeholder = "貼上 ORS API key";
+      status.innerHTML = '<span style="color:#c33;">未設定 key，「散步等時圈」按鈕會禁用。</span>';
+    }
+  }
+
+  function _orsInit() {
+    const saveBtn = document.getElementById("orsApiKeySave");
+    const clearBtn = document.getElementById("orsApiKeyClear");
+    const input = document.getElementById("orsApiKeyInput");
+    if (saveBtn && input) {
+      saveBtn.addEventListener("click", () => {
+        const v = (input.value || "").trim();
+        if (!v) { showToast("請輸入 API key"); return; }
+        if (v.length < 20) { showToast("Key 看似太短，請檢查"); return; }
+        _orsSetApiKey(v);
+        showToast("✓ ORS key 已儲存");
+        _renderOrsKeyStatus();
+      });
+    }
+    if (clearBtn) {
+      clearBtn.addEventListener("click", async () => {
+        const ok = await appDialog.confirm({
+          title: "清除 ORS key",
+          message: "確認清除儲存的 ORS API key？「散步等時圈」功能會禁用。",
+          okText: "清除", cancelText: "取消", danger: true
+        });
+        if (!ok) return;
+        _orsSetApiKey("");
+        showToast("已清除 ORS key");
+        _renderOrsKeyStatus();
+      });
+    }
+
+    // Wire detail chip handlers (sheet 只有一個，event delegation)
+    const wrap = document.getElementById("detailWalkingIso");
+    if (wrap) {
+      wrap.addEventListener("click", async (e) => {
+        const chip = e.target.closest(".walking-iso-chip");
+        const clearBtn = e.target.closest("#detailWalkingIsoClear");
+        if (clearBtn) { _orsClearIsochrone(); return; }
+        if (!chip) return;
+        const minutes = parseInt(chip.dataset.min, 10);
+        const p = state.places.find(x => x.id === state.selectedPlaceId);
+        if (!p || p.lat == null || p.lng == null) { showToast("無有坐標"); return; }
+        await _orsShowIsochrone(p.lat, p.lng, minutes, chip);
+      });
+    }
+  }
+
+  async function _orsShowIsochrone(lat, lng, minutes, chipEl) {
+    const status = document.getElementById("detailWalkingIsoStatus");
+    const clearBtn = document.getElementById("detailWalkingIsoClear");
+    const key = _orsGetApiKey();
+    if (!key) {
+      if (status) status.innerHTML = '<span style="color:#c33;">未設定 ORS key。Owner 請在邀請碼頁面設定。</span>';
+      return;
+    }
+
+    // Cache key (4-decimal precision ≈ 11m grid; 很多館可 hit same cell)
+    const cacheKey = "iso_" + lat.toFixed(4) + "_" + lng.toFixed(4) + "_" + minutes;
+    let geojson = null;
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const obj = JSON.parse(cached);
+        if (Date.now() - obj.t < ORS_CACHE_TTL_MS) geojson = obj.g;
+      }
+    } catch (e) {}
+
+    if (!geojson) {
+      const q = _orsGetQuota();
+      if (q.count >= ORS_DAILY_LIMIT) {
+        if (status) status.innerHTML = '<span style="color:#c33;">今日用量已滿 (' + q.count + ' / ' + ORS_DAILY_LIMIT + ')。明日 reset。</span>';
+        return;
+      }
+      // Disable all chips while loading
+      document.querySelectorAll(".walking-iso-chip").forEach(c => c.disabled = true);
+      if (status) status.textContent = "拉取中⋯";
+      try {
+        const res = await fetch(ORS_ENDPOINT, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": key,
+            "Accept": "application/json, application/geo+json"
+          },
+          body: JSON.stringify({
+            locations: [[lng, lat]],  // ORS expects [lng,lat]
+            range: [minutes * 60],     // seconds
+            range_type: "time",
+            attributes: ["area"]
+          })
+        });
+        _orsBumpQuota();
+        if (!res.ok) {
+          let msg = "HTTP " + res.status;
+          try { const e = await res.json(); if (e.error) msg += ": " + (typeof e.error === "string" ? e.error : (e.error.message || JSON.stringify(e.error))); } catch (er) {}
+          if (status) status.innerHTML = '<span style="color:#c33;">ORS 失敗：' + escapeHtml(msg) + '</span>';
+          return;
+        }
+        geojson = await res.json();
+        try { sessionStorage.setItem(cacheKey, JSON.stringify({ t: Date.now(), g: geojson })); } catch (e) {}
+      } catch (e) {
+        if (status) status.innerHTML = '<span style="color:#c33;">網絡錯誤：' + escapeHtml(e.message || String(e)) + '</span>';
+        return;
+      } finally {
+        document.querySelectorAll(".walking-iso-chip").forEach(c => c.disabled = false);
+      }
+    }
+
+    _orsRenderIsochrone(geojson, minutes, lat, lng);
+    if (clearBtn) clearBtn.style.display = "";
+    const q = _orsGetQuota();
+    if (status) status.innerHTML = "✓ " + minutes + " 分鐘圈 · 今日用量 " + q.count + " / " + ORS_DAILY_LIMIT;
+    // Mark active chip
+    document.querySelectorAll(".walking-iso-chip").forEach(c => c.classList.toggle("active", c === chipEl));
+  }
+
+  function _orsRenderIsochrone(geojson, minutes, lat, lng) {
+    if (!window.map) return;
+    _orsClearIsochrone();
+    try {
+      const colors = { 5: "#3a8", 10: "#39c", 15: "#93c" };
+      const color = colors[minutes] || "#3a8";
+      const layer = L.geoJSON(geojson, {
+        style: {
+          color: color, weight: 2, opacity: 0.8,
+          fillColor: color, fillOpacity: 0.18
+        }
+      });
+      layer.addTo(window.map);
+      state._walkingIsoLayer = layer;
+      // Fit bounds (gently)
+      try {
+        const b = layer.getBounds();
+        if (b.isValid()) window.map.fitBounds(b, { padding: [40, 40], maxZoom: 16 });
+      } catch (e) {}
+    } catch (e) {
+      console.warn("[ors] render failed:", e);
+    }
+  }
+
+  function _orsClearIsochrone() {
+    if (state._walkingIsoLayer && window.map) {
+      try { window.map.removeLayer(state._walkingIsoLayer); } catch (e) {}
+    }
+    state._walkingIsoLayer = null;
+    document.querySelectorAll(".walking-iso-chip").forEach(c => c.classList.remove("active"));
+    const clearBtn = document.getElementById("detailWalkingIsoClear");
+    if (clearBtn) clearBtn.style.display = "none";
+    const status = document.getElementById("detailWalkingIsoStatus");
+    if (status) status.textContent = "";
   }
 
   // -----------------------------------------------------------
@@ -2195,6 +2399,8 @@
       document.body.classList.remove("detail-open");
       // G3e: clear marker selection
       document.querySelectorAll(".emoji-marker.selected").forEach(el => el.classList.remove("selected"));
+      // v1.0.72 #11: clear walking isochrone overlay when closing detail
+      try { if (typeof _orsClearIsochrone === "function") _orsClearIsochrone(); } catch (e) {}
     }
     $("detailClose").addEventListener("click", closeDetailPanel);
     const detailBackBtn = $("detailBack");
@@ -4262,6 +4468,10 @@
     // Owner-only section toggle
     const ownerSec = document.getElementById("onboardingOwnerCodesSection");
     if (ownerSec) ownerSec.hidden = (state.role !== "owner");
+    // v1.0.72: ORS settings section toggle
+    const orsSec = document.getElementById("onboardingOrsSection");
+    if (orsSec) orsSec.hidden = (state.role !== "owner");
+    if (state.role === "owner") { try { _renderOrsKeyStatus(); } catch (e) {} }
     // v1.0.66 Feature C: auto-load owner codes when section becomes visible
     if (state.role === "owner" && typeof FeatureC !== "undefined" && FeatureC) {
       try { FeatureC.refreshList(); } catch (e) { /* silent */ }
