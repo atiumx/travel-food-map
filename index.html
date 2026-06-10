@@ -1100,9 +1100,15 @@ summary.walking-head::-webkit-details-marker { display: none; }
      - mapStyleSelect floats to map top-right (fixed)
      - tripAreaSelect floats to map top-left (fixed) */
   .sidebar header {
-    padding: 0;
-    min-height: 0;
-    /* Header still exists but contents are hidden/floated */
+    /* v1.0.67-rc4 #3 round 3: collapse header 到 0 height。
+       fixed children (langSwitch/themeToggle/mapStyleSelect) 係 viewport-anchored
+       不受父 height 影響。overflow:visible 保證 fixed children 不被 cli。 */
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: 0 !important;
+    height: 0 !important;
+    border: none !important;
+    overflow: visible !important;
   }
   .sidebar header h1,
   .sidebar header #roleBadge {
@@ -1195,8 +1201,28 @@ summary.walking-head::-webkit-details-marker { display: none; }
   .sidebar.snap-half #onboardingHelpBtn { top: 48dvh; }
   .sidebar.snap-full #onboardingHelpBtn { top: calc(44px + var(--sat)); }
   .sidebar #onboardingHelpBtn:active { transform: scale(0.92); }
-  /* 隐藏歐規則中原 .sidebar header #onboardingHelpBtn 規則 (以防全 中冲突)*/
-  .sidebar header #onboardingHelpBtn { all: unset; }
+  /* v1.0.67-rc4 #3 round 3: 同步 override。不能用 all:unset (會 reset position:fixed)。
+     header 現在 height:0，但 ? button 位在 header 內，需要明確需要明確被 fix 出來。 */
+  .sidebar header #onboardingHelpBtn {
+    position: fixed !important;
+    top: var(--sheet-top, calc(100dvh - var(--sheet-peek, 140px))) !important;
+    left: 12px !important;
+    margin-top: 4px !important;
+    z-index: 1100 !important;
+    width: 28px !important; height: 28px !important;
+    padding: 0 !important;
+    display: flex !important; align-items: center !important; justify-content: center !important;
+    font-size: 16px !important; font-weight: 700 !important; line-height: 1 !important;
+    background: var(--accent-soft, rgba(184,65,44,0.12)) !important;
+    color: var(--accent, #b8412c) !important;
+    border: 1px solid var(--accent, #b8412c) !important;
+    border-radius: 50% !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15) !important;
+    cursor: pointer !important;
+    transition: top 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+  .sidebar.snap-half header #onboardingHelpBtn { top: 48dvh !important; }
+  .sidebar.snap-full header #onboardingHelpBtn { top: calc(44px + var(--sat)) !important; }
 
   /* Hide map style picker when sheet covers map */
   body.fab-hidden .sidebar header #mapStyleSelect {
@@ -2788,9 +2814,9 @@ summary.walking-head::-webkit-details-marker { display: none; }
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <!-- v1.0.61: 主動 cache buster、強制 Safari/Fastly 拿新版 app.js -->
 <!-- v1.0.67-rc1: 拆 feature-b.js + feature-c.js (依賴 window.AppShared, 順序唔可以亂) -->
-<script src="./config.js?v=1.0.67-rc3"></script>
-<script src="./app.js?v=1.0.67-rc3"></script>
-<script src="./feature-b.js?v=1.0.67-rc3"></script>
-<script src="./feature-c.js?v=1.0.67-rc3"></script>
+<script src="./config.js?v=1.0.67-rc4"></script>
+<script src="./app.js?v=1.0.67-rc4"></script>
+<script src="./feature-b.js?v=1.0.67-rc4"></script>
+<script src="./feature-c.js?v=1.0.67-rc4"></script>
 </body>
 </html>
