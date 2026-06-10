@@ -1653,6 +1653,89 @@ summary.walking-head::-webkit-details-marker { display: none; }
   /* status bar safe area when launched as app */
   .sidebar header { padding-top: calc(14px + var(--sat)); }
 }
+
+/* v1.0.65 #4/#5: Feature B 推薦清單通用 row + utility classes */
+.submission-row {
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--card-bg, transparent);
+}
+.submission-row.clickable { cursor: pointer; }
+.submission-row.clickable:hover { background: var(--hover, #f5f5f5); }
+.submission-row .sub-meta { font-size: 11px; color: var(--muted, #888); }
+.submission-row .sub-url {
+  font-size: 13px;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.submission-row .sub-url a { color: var(--link, #06c); text-decoration: none; }
+.submission-row .sub-rating { font-size: 12px; margin-top: 4px; }
+.submission-row .sub-comment {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-soft, #444);
+  font-style: italic;
+}
+.submission-row .sub-extra { margin-top: 6px; font-size: 12px; }
+.submission-row .sub-extra a { color: var(--link, #06c); text-decoration: none; }
+.submission-row .sub-extra-err {
+  font-size: 12px;
+  color: #c33;
+}
+.submission-row .sub-extra-mono {
+  font-size: 11px;
+  font-family: monospace;
+  word-break: break-all;
+}
+.submission-row .sub-row-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.submission-row .sub-status {
+  font-size: 11px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Status filter segmented control (v1.0.65 #9) */
+.status-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0;
+  font-size: 12px;
+}
+.status-filter-bar .chip {
+  padding: 4px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--border, #ddd);
+  background: transparent;
+  cursor: pointer;
+  color: var(--text, #222);
+}
+.status-filter-bar .chip.active {
+  background: var(--accent, #06c);
+  color: #fff;
+  border-color: var(--accent, #06c);
+}
+
+/* my-submissions modal header refresh button */
+.icon-btn-refresh {
+  font-size: 14px;
+  padding: 4px 8px;
+  margin-right: 6px;
+  background: transparent;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text, #222);
+}
+.icon-btn-refresh:disabled { opacity: 0.5; cursor: wait; }
 </style>
 </head>
 <body>
@@ -2236,12 +2319,44 @@ summary.walking-head::-webkit-details-marker { display: none; }
   <div class="modal" style="max-width:600px;">
     <h2 style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
       <span>📋 我嘅推薦</span>
-      <button class="btn" id="mySubmissionsClose" type="button" style="font-size:14px;padding:4px 10px;">關閉</button>
+      <span>
+        <button class="icon-btn-refresh" id="mySubmissionsRefresh" type="button" title="重新拉取">↻</button>
+        <button class="btn" id="mySubmissionsClose" type="button" style="font-size:14px;padding:4px 10px;">關閉</button>
+      </span>
     </h2>
     <p style="font-size:12px;color:var(--muted, #888);margin-top:-4px;">你過往 submit 過嘅推薦同 status，最多 100 條。</p>
 
-    <div id="mySubmissionsBody" style="margin-top:10px;display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow-y:auto;">
+    <!-- v1.0.65 #9: status segmented control -->
+    <div class="status-filter-bar" id="mySubmissionsFilter">
+      <button class="chip active" data-status="all" type="button">全部</button>
+      <button class="chip" data-status="pending" type="button">未解析</button>
+      <button class="chip" data-status="resolved" type="button">待審核</button>
+      <button class="chip" data-status="approved" type="button">已批准</button>
+      <button class="chip" data-status="rejected" type="button">已拒絕</button>
+      <button class="chip" data-status="resolve_failed" type="button">解析失敗</button>
+    </div>
+
+    <div id="mySubmissionsBody" style="margin-top:6px;display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow-y:auto;">
       <div style="text-align:center;color:var(--muted, #888);padding:20px;">載入中…</div>
+    </div>
+  </div>
+</div>
+
+<!-- v1.0.65 #3/#8: 通用 confirm/prompt modal (取代 native alert/prompt/confirm) -->
+<div class="modal-bg" id="appDialogModal">
+  <div class="modal" style="max-width:480px;">
+    <h2 id="appDialogTitle" style="margin-bottom:8px;">確認</h2>
+    <div id="appDialogMessage" style="font-size:14px;color:var(--text, #222);margin-bottom:12px;white-space:pre-wrap;"></div>
+
+    <!-- preset chips (prompt mode 可選) -->
+    <div id="appDialogChips" hidden style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;"></div>
+
+    <!-- input area (prompt mode 才顯示) -->
+    <textarea id="appDialogInput" hidden rows="3" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border, #ddd);border-radius:6px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>
+
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+      <button class="btn" id="appDialogCancel" type="button">取消</button>
+      <button class="btn btn-primary" id="appDialogOk" type="button">確認</button>
     </div>
   </div>
 </div>
@@ -2320,7 +2435,7 @@ summary.walking-head::-webkit-details-marker { display: none; }
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <!-- v1.0.61: 主動 cache buster、強制 Safari/Fastly 拿新版 app.js -->
-<script src="./config.js?v=1.0.64"></script>
-<script src="./app.js?v=1.0.64"></script>
+<script src="./config.js?v=1.0.65"></script>
+<script src="./app.js?v=1.0.65"></script>
 </body>
 </html>

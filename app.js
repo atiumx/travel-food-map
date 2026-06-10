@@ -8,7 +8,7 @@
 
 (() => {
   // v1.0.60: 應用版本號（統一管理，邀請碼 pane 顯示）
-  const APP_VERSION = "v1.0.64";
+  const APP_VERSION = "v1.0.65";
   const APP_BUILD_DATE = "2026-06-10";
   window.__APP_VERSION = APP_VERSION;
 
@@ -495,7 +495,7 @@
     if (editBtn) editBtn.addEventListener("click", openBudgetRateEditor);
     applyI18n();
   }
-  function openBudgetRateEditor() {
+  async function openBudgetRateEditor() {
     const slug = state.currentTripAreaSlug;
     const rates = getBudgetRatesForArea(slug);
     const cur = getCurrencyForArea(slug);
@@ -503,10 +503,15 @@
     const newRates = {};
     for (const lvl of labels) {
       const curVal = rates[lvl];
-      const v = prompt(`${slug} · ${lvl} = ? ${cur.code}/人`, String(curVal));
+      const v = await appDialog.prompt({
+        title: "調整單價",
+        message: `${slug} · ${lvl} 平均預算 (${cur.code}/人·店)`,
+        defaultValue: String(curVal),
+        placeholder: "請輸入非負整數"
+      });
       if (v === null) return; // user cancelled → abort all
       const n = parseInt(v, 10);
-      if (isNaN(n) || n < 0) { alert("請輸入非負整數"); return; }
+      if (isNaN(n) || n < 0) { showToast("請輸入非負整數"); return; }
       newRates[lvl] = n;
     }
     const all = loadBudgetRates();
@@ -716,6 +721,42 @@
   // -----------------------------------------------------------
   // Init
   // -----------------------------------------------------------
+  // -----------------------------------------------------------
+  // v1.0.65 #12: global error boundary
+  // - window error + unhandledrejection → console.group + showToast
+  // - dedup: 同一個 message 5s 內不重複 toast
+  // - 不代替 except handlers (re-throw 以 preserve devtools breakpoints)
+  // -----------------------------------------------------------
+  const _errBoundary = {
+    lastMsg: "",
+    lastTs: 0,
+    handle(label, err) {
+      const msg = (err && (err.message || err.reason || String(err))) || "unknown error";
+      const now = Date.now();
+      try {
+        console.group("[" + label + "] caught");
+        console.error(err);
+        if (err && err.stack) console.log(err.stack);
+        console.groupEnd();
+      } catch (_) { /* devtools closed */ }
+      // dedup toast within 5s
+      if (msg === this.lastMsg && (now - this.lastTs) < 5000) return;
+      this.lastMsg = msg; this.lastTs = now;
+      try {
+        if (typeof showToast === "function") {
+          showToast("⚠️ " + label + "：" + msg.slice(0, 120), 3500);
+        }
+      } catch (_) { /* toast el 未 ready */ }
+    }
+  };
+  window.addEventListener("error", (e) => {
+    // 只接 JS 錯, 不處理 resource load error (img/script 404 et al.)
+    if (e.error) _errBoundary.handle("runtime", e.error);
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    _errBoundary.handle("promise", e.reason);
+  });
+
   async function init() {
     populateCategorySelects();
     bindEvents();
@@ -752,6 +793,8 @@
     setupOnlineStatus();
     // F: mobile gestures + bottom sheet + zoom relocation
     initMobile();
+    // v1.0.65 #3/#8: appDialog (取代 native alert/prompt/confirm)
+    try { appDialog.init(); } catch (e) { console.warn("appDialog.init failed", e); }
     // v1.0.63 Feature B Push 2: submission flow init
     try { FeatureB.init(); } catch (e) { console.warn("FeatureB.init failed", e); }
   }
@@ -1872,8 +1915,13 @@
         await navigator.clipboard.writeText(url);
         showToast("連結已複製");
       } catch {
-        showToast("複製失敗，請手動複製");
-        prompt("複製連結：", url);
+        appDialog.prompt({
+          title: "手動複製連結",
+          message: "自動複製失敗，請長按選取以下連結",
+          defaultValue: url,
+          okText: "關閉",
+          cancelText: "關閉"
+        });
       }
     });
 
@@ -1924,16 +1972,22 @@
     // P1-4: ⓘ explainer (text moved out of inline DOM into this popover)
     const infoBtn = document.getElementById("walkingInfoBtn");
     if (infoBtn) infoBtn.addEventListener("click", () => {
-      alert(infoBtn.getAttribute("title") || "");
+      appDialog.alert({ title: "步行圏說明", message: infoBtn.getAttribute("title") || "" });
     });
 
     $("addAnchorMap").addEventListener("click", () => addAnchor("map"));
     $("addAnchorGeo").addEventListener("click", () => addAnchor("geo"));
     $("addAnchorPlace").addEventListener("click", () => addAnchor("place"));
     $("addAnchorStation").addEventListener("click", () => addAnchor("station"));
-    $("clearAnchorsBtn").addEventListener("click", () => {
+    $("clearAnchorsBtn").addEventListener("click", async () => {
       if (state.walking.anchors.length === 0) return;
-      if (confirm(`清除 ${state.walking.anchors.length} 個 anchor？`)) clearAllAnchors();
+      const ok = await appDialog.confirm({
+        title: "清除 anchor",
+        message: `清除 ${state.walking.anchors.length} 個 anchor？此操作不可撤銷。`,
+        okText: "清除",
+        danger: true
+      });
+      if (ok) clearAllAnchors();
     });
     $("planRouteBtn").addEventListener("click", () => planWalkingRoute());
 
@@ -1999,8 +2053,14 @@
     // v1.0.57: 「切換身份」button — 登出當前邀請碼，回到訪客 + reload (重設 state)
     const switchBtn = document.getElementById("onboardingSwitchBtn");
     if (switchBtn) {
-      switchBtn.addEventListener("click", () => {
-        if (!window.confirm("確認登出當前邀請碼？將回到訪客模式。")) return;
+      switchBtn.addEventListener("click", async () => {
+        const ok = await appDialog.confirm({
+          title: "登出邀請碼",
+          message: "確認登出當前邀請碼？將回到訪客模式、重載頁面。",
+          okText: "登出",
+          danger: true
+        });
+        if (!ok) return;
         try {
           localStorage.removeItem("tfm_invite_code");
           localStorage.removeItem("tfm_display_name");
@@ -2669,7 +2729,12 @@
         if (!p.opening_hours) missing.push("營業時間");
         if (!p.address) missing.push("地址");
         if (missing.length) {
-          if (!confirm(p.name + " 仍缺：" + missing.join("、") + "\n\n確定標記為已驗證？")) return;
+          const ok = await appDialog.confirm({
+            title: "資料不全",
+            message: p.name + "\n\n仍缺：" + missing.join("、") + "\n\n確定標記為已驗證？",
+            okText: "標記驗證"
+          });
+          if (!ok) return;
         }
         qvBtn.disabled = true;
         qvBtn.textContent = "⋯";
@@ -2682,7 +2747,7 @@
         if (error) {
           qvBtn.disabled = false;
           qvBtn.textContent = "✓";
-          alert("更新失敗：" + error.message);
+          showToast("更新失敗：" + error.message, 3500);
           return;
         }
         p.verified = true;
@@ -3184,7 +3249,7 @@
     const valid = w.anchors.filter(a => a.lat != null && a.lng != null);
     if (valid.length < 2) return;
     if (valid.length > TSP_MAX_TOTAL) {
-      alert(`最多 ${TSP_MAX_TOTAL} 個起點可規劃路線`);
+      showToast(`最多 ${TSP_MAX_TOTAL} 個起點可規劃路線`, 3000);
       return;
     }
 
@@ -3761,7 +3826,7 @@
             p_place_id: p.id,
             p_day_tag: val,
           });
-          if (error) { alert("更新失敗：" + error.message); return; }
+          if (error) { showToast("更新失敗：" + error.message, 3500); return; }
           p.day_tag = val;
           applyFilters();
           openPlaceDetail(p.id);
@@ -3789,7 +3854,12 @@
         btn.onclick = async () => {
           const newVal = !isVer;
           if (newVal && missing.length) {
-            if (!confirm("這個地點仍缺：" + missing.join("、") + "\n\n確定標記為已驗證？")) return;
+            const ok = await appDialog.confirm({
+              title: "資料不全",
+              message: "這個地點仍缺：" + missing.join("、") + "\n\n確定標記為已驗證？",
+              okText: "標記驗證"
+            });
+            if (!ok) return;
           }
           btn.disabled = true;
           const { error } = await sb.rpc("update_place_verified", {
@@ -3799,7 +3869,7 @@
             p_verified: newVal,
           });
           btn.disabled = false;
-          if (error) { alert("更新失敗：" + error.message); return; }
+          if (error) { showToast("更新失敗：" + error.message, 3500); return; }
           p.verified = newVal;
           applyFilters();
           openPlaceDetail(p.id);
@@ -4120,7 +4190,13 @@
   // Rename flow (called from sidebar rename btn or onboarding rename btn)
   async function handleRename() {
     if (!state.inviteCode) { showToast("請先驗證邀請碼"); return; }
-    const newName = window.prompt("輸入新顯示名（1-40字）", state.displayName || "");
+    const newName = await appDialog.prompt({
+      title: "改名",
+      message: "輸入新顯示名 (1-40 字)",
+      defaultValue: state.displayName || "",
+      placeholder: "新名字",
+      okText: "保存"
+    });
     if (!newName || !newName.trim()) return;
     const trimmed = newName.trim();
     if (trimmed.length < 1 || trimmed.length > 40) {
@@ -4537,7 +4613,13 @@
     galleryEl.querySelectorAll(".photo-del").forEach(btn => {
       btn.addEventListener("click", async e => {
         e.stopPropagation();
-        if (!confirm("刪除呢張相？")) return;
+        const ok = await appDialog.confirm({
+          title: "刪除相片",
+          message: "確認刪除這張相片？此操作不可撤銷。",
+          okText: "刪除",
+          danger: true
+        });
+        if (!ok) return;
         const { error } = await sb.rpc("delete_photo", {
           p_invite_code: state.inviteCode,
           p_display_name: state.displayName,
@@ -4563,14 +4645,131 @@
   function closeModal(id) { $(id).classList.remove("open"); }
 
   // -----------------------------------------------------------
-  // Utils
+  // v1.0.65 #3/#8: appDialog — 取代 native alert/prompt/confirm
+  // - confirm({ title, message, okText, cancelText, danger })  → Promise<bool>
+  // - prompt({ title, message, defaultValue, placeholder,
+  //           multiline, presetChips, allowEmpty, okText, cancelText }) → Promise<string|null>
+  // - alert({ title, message, okText })                          → Promise<void>
+  // 同一 modal 同一時間一個 dialog，沒有 queue (該 case 用 toast)
   // -----------------------------------------------------------
-  function escapeHtml(s) {
-    if (s == null) return "";
-    return String(s)
-      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
-  }
+  const appDialog = (() => {
+    let _activeResolve = null;
+    let _mode = null; // 'confirm' | 'prompt' | 'alert'
+
+    function _close(result) {
+      const r = _activeResolve;
+      _activeResolve = null;
+      _mode = null;
+      closeModal("appDialogModal");
+      // 清除 chip listeners (免 leak)
+      const chipsEl = $("appDialogChips");
+      if (chipsEl) chipsEl.innerHTML = "";
+      if (r) r(result);
+    }
+
+    function _ok() {
+      if (_mode === "prompt") {
+        const v = $("appDialogInput").value;
+        _close(v);
+      } else {
+        _close(true);
+      }
+    }
+    function _cancel() {
+      _close(_mode === "prompt" ? null : false);
+    }
+
+    function _setup({ title, message, okText, cancelText, danger, showInput, showChips, defaultValue, placeholder, multiline, presetChips, hideCancel }) {
+      $("appDialogTitle").textContent = title || "確認";
+      $("appDialogMessage").textContent = message || "";
+      $("appDialogOk").textContent = okText || "確認";
+      $("appDialogCancel").textContent = cancelText || "取消";
+      $("appDialogCancel").hidden = !!hideCancel;
+      // danger 色: 紅 OK
+      const okBtn = $("appDialogOk");
+      okBtn.style.background = danger ? "#c33" : "";
+      okBtn.style.color = danger ? "#fff" : "";
+      okBtn.style.borderColor = danger ? "#c33" : "";
+      // input
+      const inp = $("appDialogInput");
+      inp.hidden = !showInput;
+      if (showInput) {
+        inp.value = defaultValue || "";
+        inp.placeholder = placeholder || "";
+        inp.rows = multiline ? 4 : 2;
+      }
+      // chips
+      const chipsEl = $("appDialogChips");
+      chipsEl.innerHTML = "";
+      chipsEl.hidden = !(showChips && presetChips && presetChips.length);
+      if (showChips && presetChips && presetChips.length) {
+        presetChips.forEach(label => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "btn";
+          btn.textContent = label;
+          btn.style.cssText = "font-size:12px;padding:4px 10px;border-radius:14px;";
+          btn.addEventListener("click", () => {
+            const cur = inp.value;
+            inp.value = cur ? (cur + (cur.endsWith("\n") ? "" : "\n") + label) : label;
+            inp.focus();
+          });
+          chipsEl.appendChild(btn);
+        });
+      }
+    }
+
+    function confirm(opts) {
+      return new Promise(resolve => {
+        if (_activeResolve) { _activeResolve(false); _activeResolve = null; }
+        _mode = "confirm";
+        _activeResolve = resolve;
+        _setup(Object.assign({ showInput: false, showChips: false }, opts));
+        openModal("appDialogModal");
+      });
+    }
+    function prompt(opts) {
+      return new Promise(resolve => {
+        if (_activeResolve) { _activeResolve(null); _activeResolve = null; }
+        _mode = "prompt";
+        _activeResolve = resolve;
+        _setup(Object.assign({ showInput: true, showChips: !!(opts && opts.presetChips) }, opts));
+        openModal("appDialogModal");
+        setTimeout(() => { try { $("appDialogInput").focus(); } catch (_) {} }, 50);
+      });
+    }
+    function alert(opts) {
+      return new Promise(resolve => {
+        if (_activeResolve) { _activeResolve(null); _activeResolve = null; }
+        _mode = "alert";
+        _activeResolve = resolve;
+        _setup(Object.assign({ showInput: false, showChips: false, hideCancel: true, okText: "知道" }, opts));
+        openModal("appDialogModal");
+      });
+    }
+
+    function init() {
+      $("appDialogOk").addEventListener("click", _ok);
+      $("appDialogCancel").addEventListener("click", _cancel);
+      const bg = $("appDialogModal");
+      bg.addEventListener("click", (e) => { if (e.target === bg) _cancel(); });
+      // Enter 提交 (confirm/alert mode 才, prompt textarea 用 Cmd+Enter)
+      document.addEventListener("keydown", (e) => {
+        if (!$("appDialogModal").classList.contains("open")) return;
+        if (e.key === "Escape") { e.preventDefault(); _cancel(); }
+        else if (e.key === "Enter") {
+          if (_mode === "prompt") {
+            // Cmd/Ctrl+Enter 提交
+            if (e.metaKey || e.ctrlKey) { e.preventDefault(); _ok(); }
+          } else {
+            e.preventDefault(); _ok();
+          }
+        }
+      });
+    }
+
+    return { confirm, prompt, alert, init };
+  })();
 
   // =============================================================
   // v1.0.63 Feature B Push 2: submission flow (frontend)
@@ -4588,6 +4787,9 @@
     let _debugObserver = null;
     let _pendingListCache = [];       // v1.0.64 Push 3: cache for 🔄 bulk resolve
     let _bulkResolveRunning = false;  // v1.0.64 Push 3: guard against double-click
+    let _bulkAbortRequested = false;  // v1.0.65 #7: 中斷旗
+    let _mySubmissionsCache = null;   // v1.0.65 #6: cache to avoid refetch every open
+    let _mySubFilterStatus = "all";   // v1.0.65 #9: client-side status filter
 
     // ----- helpers -----
     function $$(id) { return document.getElementById(id); }
@@ -4788,24 +4990,31 @@
         bodyEl.innerHTML = '<div style="color:#c33;padding:12px;">載入失敗：' + escapeHtml(e.message || String(e)) + '</div>';
       }
     }
+    // v1.0.65 #4: 統一 status 色/label map (与 my-submissions 共用)
+    const STATUS_META = {
+      pending:         { color: "#888", label: "未解析"   },
+      resolved:        { color: "#06c", label: "待審核"   },
+      resolve_failed:  { color: "#c95", label: "解析失敗" },
+      approved:        { color: "#0a0", label: "已批准"   },
+      rejected:        { color: "#c33", label: "已拒絕"   }
+    };
+    function _statusBadge(status) {
+      const sm = STATUS_META[status] || { color: "#888", label: status };
+      return { color: sm.color, label: sm.label };
+    }
     function _renderPendingRow(s) {
-      const statusColor = s.status === "pending" ? "#888" :
-                          s.status === "resolved" ? "#0a0" :
-                          s.status === "resolve_failed" ? "#c95" : "#888";
-      const statusLabel = s.status === "pending" ? "未解析" :
-                          s.status === "resolved" ? "已解析" :
-                          s.status === "resolve_failed" ? "解析失敗" : s.status;
+      const sm = _statusBadge(s.status);
       const errStr = s.resolver_error ? '<span style="color:#c33;font-size:11px;"> · ' + escapeHtml(s.resolver_error.slice(0, 50)) + '</span>' : "";
       const ratingStr = s.recommendation ? "⭐".repeat(s.recommendation) : "";
       return `
-        <div data-pid="${s.id}" style="border:1px solid var(--border,#ddd);border-radius:8px;padding:10px;cursor:pointer;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div data-pid="${s.id}" class="submission-row clickable">
+          <div class="sub-row-flex">
             <div style="flex:1;min-width:0;">
-              <div style="font-size:12px;color:#888;">${urlSourceLabel(s.url_source)} · ${escapeHtml(s.submitted_by_name)} · ${relTime(s.created_at)}</div>
-              <div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;">${escapeHtml(s.raw_url)}</div>
-              <div style="font-size:12px;margin-top:4px;">${ratingStr}${s.comment ? ' 「' + escapeHtml(s.comment) + '」' : ''}</div>
+              <div class="sub-meta">${urlSourceLabel(s.url_source)} · ${escapeHtml(s.submitted_by_name)} · ${relTime(s.created_at)}</div>
+              <div class="sub-url">${escapeHtml(s.raw_url)}</div>
+              <div class="sub-rating">${ratingStr}${s.comment ? ' 「' + escapeHtml(s.comment) + '」' : ''}</div>
             </div>
-            <div style="font-size:11px;color:${statusColor};white-space:nowrap;">${statusLabel}${errStr}</div>
+            <div class="sub-status" style="color:${sm.color};">${sm.label}${errStr}</div>
           </div>
         </div>`;
     }
@@ -4959,7 +5168,17 @@
     }
     async function _resolveReject() {
       if (!_currentResolve) return;
-      const reason = prompt("拒絕原因（可選）：");
+      // v1.0.65 #8: 拒絕原因 modal + preset chips
+      const reason = await appDialog.prompt({
+        title: "拒絕推薦",
+        message: "可選填寫拒絕原因（會顯示給 submitter 看）。",
+        defaultValue: "",
+        placeholder: "例：重複地點 / 離地圖太遠 / 資料不全",
+        multiline: true,
+        presetChips: ["重複地點", "離地圖太遠", "資料不全", "不合適上地圖"],
+        okText: "拒絕",
+        danger: true
+      });
       if (reason === null) return; // cancelled
       const msgEl = $$("resolveMsg");
       const btn = $$("resolveRejectBtn");
@@ -4993,23 +5212,45 @@
         s.status === "pending" || s.status === "resolve_failed"
       );
       const total = _pendingListCache.length;
+      if (_bulkResolveRunning) {
+        // running 時 button 變 abort
+        return;
+      }
       span.textContent = total === 0 ? "" : ("可 resolve: " + resolvable.length + " / " + total);
-      btn.disabled = (resolvable.length === 0) || _bulkResolveRunning;
+      btn.textContent = "🔄 全部 resolve";
+      btn.disabled = (resolvable.length === 0);
     }
     async function _bulkResolve() {
-      if (_bulkResolveRunning) return;
+      // v1.0.65 #7: 如果已經 running, click 就變 abort
+      if (_bulkResolveRunning) {
+        _bulkAbortRequested = true;
+        const btn = $$("pendingListBulkResolveBtn");
+        if (btn) { btn.disabled = true; btn.textContent = "⏹ 停止中…"; }
+        return;
+      }
       const targets = _pendingListCache.filter(s =>
         s.status === "pending" || s.status === "resolve_failed"
       );
       if (targets.length === 0) { showToast("沒有需要 resolve 嘅 submission"); return; }
-      if (!confirm("將對 " + targets.length + " 条 submission 逐個呼叫 Edge Function。需要約 " + Math.round(targets.length * 1.5) + " 秒，繼續？")) return;
+      const ok0 = await appDialog.confirm({
+        title: "全部 resolve",
+        message: "將對 " + targets.length + " 條 submission 逐個呼叫 Edge Function，\n預計用 " + Math.round(targets.length * 1.5) + " 秒。\n\n進行中可以 click 同一個按鈕中斷。",
+        okText: "開始",
+        cancelText: "取消"
+      });
+      if (!ok0) return;
 
       _bulkResolveRunning = true;
+      _bulkAbortRequested = false;
       const btn = $$("pendingListBulkResolveBtn");
       const span = $$("pendingListBulkStatus");
-      if (btn) btn.disabled = true;
-      let ok = 0, fail = 0;
+      if (btn) { btn.disabled = false; btn.textContent = "⏹ 停"; }
+      let ok = 0, fail = 0, aborted = 0;
       for (let i = 0; i < targets.length; i++) {
+        if (_bulkAbortRequested) {
+          aborted = targets.length - i;
+          break;
+        }
         const s = targets[i];
         if (span) span.textContent = "正在解析 " + (i + 1) + " / " + targets.length + "…";
         try {
@@ -5032,22 +5273,33 @@
           console.warn("bulk resolve failed for", s.id, e);
         }
         // 1.5s gap between calls to be nice to Edge Function + 3rd-party APIs
-        if (i < targets.length - 1) await new Promise(res => setTimeout(res, 1500));
+        if (i < targets.length - 1 && !_bulkAbortRequested) {
+          await new Promise(res => setTimeout(res, 1500));
+        }
       }
-      if (span) span.textContent = "完成：成功 " + ok + " · 失敗 " + fail;
       _bulkResolveRunning = false;
+      _bulkAbortRequested = false;
+      const summary = aborted > 0
+        ? ("中斷：成功 " + ok + " · 失敗 " + fail + " · 未處理 " + aborted)
+        : ("完成：成功 " + ok + " · 失敗 " + fail);
+      if (span) span.textContent = summary;
       // Refresh pending list to reflect updated statuses
       try { await openPendingListModal(); } catch (e) { /* modal stays open */ }
-      showToast("bulk resolve 完成：成功 " + ok + " / 失敗 " + fail);
+      showToast("bulk resolve " + summary);
     }
 
     // ============================================================
     // v1.0.64 Push 3: 📋 我嘅推薦 modal (friend + owner) — self-query via list_my_submissions RPC
     // ============================================================
-    async function openMySubmissionsModal() {
+    async function openMySubmissionsModal(forceRefresh = false) {
       if (state.role === "guest") { showToast("請先輸入邀請碼"); return; }
       openModal("mySubmissionsModal");
       const bodyEl = $$("mySubmissionsBody");
+      // v1.0.65 #6: use cache if available and not forced
+      if (!forceRefresh && _mySubmissionsCache && Array.isArray(_mySubmissionsCache)) {
+        _renderMySubmissionsFiltered();
+        return;
+      }
       bodyEl.innerHTML = '<div style="text-align:center;color:#888;padding:20px;">載入中…</div>';
       try {
         const { data, error } = await sb.rpc("list_my_submissions", {
@@ -5055,40 +5307,48 @@
           p_display_name: state.displayName
         });
         if (error) throw error;
-        if (!data || data.length === 0) {
-          bodyEl.innerHTML = '<div style="text-align:center;color:#888;padding:20px;">你還未 submit 過任何推薦</div>';
-          return;
-        }
-        bodyEl.innerHTML = data.map(s => _renderMySubmissionRow(s)).join("");
-        // Wire flyTo for approved place links
-        bodyEl.querySelectorAll("[data-flyto-pid]").forEach(a => {
-          a.addEventListener("click", (e) => {
-            e.preventDefault();
-            const pid = a.dataset.flytoPid;
-            const p = (state.places || []).find(x => x.id === pid);
-            if (p && typeof map !== "undefined" && map && p.lat != null && p.lng != null) {
-              closeModal("mySubmissionsModal");
-              map.flyTo([p.lat, p.lng], 17, { duration: 0.6 });
-              if (typeof state !== "undefined") state.selectedPlaceId = p.id;
-            } else {
-              showToast("找不到 place 或地圖未初始化");
-            }
-          });
-        });
+        _mySubmissionsCache = data || [];
+        _renderMySubmissionsFiltered();
       } catch (e) {
+        _mySubmissionsCache = null;
         bodyEl.innerHTML = '<div style="color:#c33;padding:12px;">載入失敗：' + escapeHtml(e.message || String(e)) + '</div>';
       }
     }
+    // v1.0.65 #6/#9: render from cache with current filter applied
+    function _renderMySubmissionsFiltered() {
+      const bodyEl = $$("mySubmissionsBody");
+      if (!bodyEl || !_mySubmissionsCache) return;
+      const all = _mySubmissionsCache;
+      const filtered = (_mySubFilterStatus === "all")
+        ? all
+        : all.filter(s => s.status === _mySubFilterStatus);
+      if (filtered.length === 0) {
+        const emptyMsg = (_mySubFilterStatus === "all")
+          ? "你還未 submit 過任何推薦"
+          : ("沒有「" + (STATUS_META[_mySubFilterStatus] ? STATUS_META[_mySubFilterStatus].label : _mySubFilterStatus) + "」狀態嘅推薦");
+        bodyEl.innerHTML = '<div style="text-align:center;color:#888;padding:20px;">' + escapeHtml(emptyMsg) + '</div>';
+        return;
+      }
+      bodyEl.innerHTML = filtered.map(s => _renderMySubmissionRow(s)).join("");
+      // Wire flyTo for approved place links
+      bodyEl.querySelectorAll("[data-flyto-pid]").forEach(a => {
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          const pid = a.dataset.flytoPid;
+          const p = (state.places || []).find(x => x.id === pid);
+          if (p && typeof map !== "undefined" && map && p.lat != null && p.lng != null) {
+            closeModal("mySubmissionsModal");
+            map.flyTo([p.lat, p.lng], 17, { duration: 0.6 });
+            if (typeof state !== "undefined") state.selectedPlaceId = p.id;
+          } else {
+            showToast("找不到 place 或地圖未初始化");
+          }
+        });
+      });
+    }
     function _renderMySubmissionRow(s) {
-      // status 色、label、附加資訊按 status 該全顯示
-      const statusMap = {
-        pending:         { color: "#888", label: "未解析"   },
-        resolved:        { color: "#06c", label: "待審核"   },
-        resolve_failed:  { color: "#c95", label: "解析失敗" },
-        approved:        { color: "#0a0", label: "已批准"   },
-        rejected:        { color: "#c33", label: "已拒絕"   }
-      };
-      const sm = statusMap[s.status] || { color: "#888", label: s.status };
+      // v1.0.65 #4/#5: 使用共用 STATUS_META + .submission-row utility class
+      const sm = _statusBadge(s.status);
       const ratingStr = s.recommendation ? "⭐".repeat(s.recommendation) : "";
       const tripStr = s.detected_trip_area_slug ? ' · ' + escapeHtml(s.detected_trip_area_slug) : "";
 
@@ -5097,26 +5357,26 @@
       if (s.status === "approved" && s.approved_place_id) {
         const placeLabel = escapeHtml(s.approved_place_name || s.approved_place_id);
         const taStr = s.approved_place_trip_area_slug ? ' (' + escapeHtml(s.approved_place_trip_area_slug) + ')' : "";
-        extra = '<div style="margin-top:6px;font-size:12px;"><a href="#" data-flyto-pid="' + escapeHtml(s.approved_place_id) + '" style="color:#06c;text-decoration:none;">📍 ' + placeLabel + taStr + ' → 在地圖看</a></div>';
+        extra = '<div class="sub-extra"><a href="#" data-flyto-pid="' + escapeHtml(s.approved_place_id) + '" class="link-flyto">📍 ' + placeLabel + taStr + ' → 在地圖看</a></div>';
       } else if (s.status === "rejected" && s.rejected_reason) {
-        extra = '<div style="margin-top:6px;font-size:12px;color:#c33;">拒絕原因：' + escapeHtml(s.rejected_reason) + '</div>';
+        extra = '<div class="sub-extra sub-extra-err">拒絕原因：' + escapeHtml(s.rejected_reason) + '</div>';
       } else if (s.status === "resolve_failed" && s.resolver_error) {
-        extra = '<div style="margin-top:6px;font-size:11px;color:#c33;font-family:monospace;word-break:break-all;">' + escapeHtml(s.resolver_error.slice(0, 200)) + '</div>';
+        extra = '<div class="sub-extra sub-extra-err sub-extra-mono">' + escapeHtml(s.resolver_error.slice(0, 200)) + '</div>';
       }
 
-      const commentStr = s.comment ? '<div style="margin-top:4px;font-size:12px;color:#444;font-style:italic;">「' + escapeHtml(s.comment) + '」</div>' : "";
+      const commentStr = s.comment ? '<div class="sub-comment">「' + escapeHtml(s.comment) + '」</div>' : "";
 
       return `
-        <div style="border:1px solid var(--border,#ddd);border-radius:8px;padding:10px;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        <div class="submission-row">
+          <div class="sub-row-flex">
             <div style="flex:1;min-width:0;">
-              <div style="font-size:11px;color:#888;">${urlSourceLabel(s.url_source)}${tripStr} · ${relTime(s.created_at)}</div>
-              <div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;"><a href="${escapeHtml(s.raw_url)}" target="_blank" rel="noopener" style="color:#06c;">${escapeHtml(s.raw_url)}</a></div>
-              <div style="font-size:12px;margin-top:4px;">${ratingStr}</div>
+              <div class="sub-meta">${urlSourceLabel(s.url_source)}${tripStr} · ${relTime(s.created_at)}</div>
+              <div class="sub-url"><a href="${escapeHtml(s.raw_url)}" target="_blank" rel="noopener" class="link-src">${escapeHtml(s.raw_url)}</a></div>
+              <div class="sub-rating">${ratingStr}</div>
               ${commentStr}
               ${extra}
             </div>
-            <div style="font-size:11px;color:${sm.color};white-space:nowrap;font-weight:600;">${sm.label}</div>
+            <div class="sub-status" style="color:${sm.color};">${sm.label}</div>
           </div>
         </div>`;
     }
@@ -5228,6 +5488,24 @@
       if (mysClose) mysClose.addEventListener("click", () => closeModal("mySubmissionsModal"));
       const mysBg = $$("mySubmissionsModal");
       if (mysBg) mysBg.addEventListener("click", (e) => { if (e.target === mysBg) closeModal("mySubmissionsModal"); });
+      // v1.0.65 #6: refresh button forces refetch
+      const mysRefresh = $$("mySubmissionsRefresh");
+      if (mysRefresh) mysRefresh.addEventListener("click", () => {
+        _mySubmissionsCache = null;
+        openMySubmissionsModal(true);
+      });
+      // v1.0.65 #9: status filter chips
+      const mysFilter = $$("mySubmissionsFilter");
+      if (mysFilter) {
+        mysFilter.addEventListener("click", (e) => {
+          const btn = e.target.closest(".chip");
+          if (!btn) return;
+          const status = btn.dataset.status || "all";
+          _mySubFilterStatus = status;
+          mysFilter.querySelectorAll(".chip").forEach(c => c.classList.toggle("active", c === btn));
+          if (_mySubmissionsCache) _renderMySubmissionsFiltered();
+        });
+      }
 
       // Resolve modal
       const rsCancel = $$("resolveCancel");
