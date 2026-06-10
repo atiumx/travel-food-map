@@ -1399,39 +1399,50 @@ summary.walking-head::-webkit-details-marker { display: none; }
     max-height: none;
     overflow: visible;
   }
-  /* R5-3: bottom safe-area + bg for footer-actions (invite/add row) */
-  /* v1.0.67-rc7: footer 改 column layout，submission toolbar 同 addPlaceBtn 上下 stack */
+  /* R5-3 + v1.0.67-rc8: bg for footer-actions (invite/add row)
+     修正 padding-bottom 重複：.sidebar 已有 padding-bottom: var(--sab)，
+     footer-actions 不再重複 sab，只要個 6px breathing room。
+     恢復 row layout (5 個 button 一行)。 */
   .sidebar .footer-actions {
-    flex-direction: column !important;
+    flex-direction: row !important;
+    align-items: center !important;
     gap: 6px !important;
-    padding-bottom: calc(10px + var(--sab));
+    padding: 6px 10px !important;
     background: var(--panel);
     position: relative;
     z-index: 2;
+    border-top: 1px solid var(--border);
   }
-  /* submission toolbar (owner 看 4 個、friend 看 2 個、guest 看 1 個)
-     用 grid 2-column 避免 squeeze；owner 4 個自然 2×2，其他認隨位 */
+  /* submission toolbar 與 addPlaceBtn 同行，submission-toolbar 含多數 button
+     自動 flex-wrap: nowrap，每個越窄越好 (取消讓 wrap) */
   .sidebar .footer-actions .submission-toolbar {
-    display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 6px !important;
-    margin-bottom: 0 !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    flex: 1 1 auto !important;
+    gap: 4px !important;
+    margin: 0 !important;
+    min-width: 0 !important;
   }
   .sidebar .footer-actions .submission-toolbar .submission-btn {
-    flex: none !important;
-    width: 100% !important;
-    min-height: 40px !important;
-    font-size: 13px !important;
-    padding: 8px 6px !important;
-    line-height: 1.25 !important;
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    min-height: 44px !important;
+    font-size: 11px !important;
+    padding: 4px 2px !important;
+    line-height: 1.15 !important;
     white-space: normal !important;
     text-align: center !important;
+    overflow: hidden !important;
   }
   .sidebar .footer-actions #addPlaceBtn {
-    width: 100% !important;
+    flex: 0 0 auto !important;
     min-height: 44px !important;
-    font-size: 14px !important;
+    padding: 4px 8px !important;
+    font-size: 12px !important;
     font-weight: 600 !important;
+    line-height: 1.15 !important;
+    white-space: normal !important;
+    max-width: 64px !important;
   }
 
   /* ---- F2-6 + G1-1: horizontal scrolling filter chip row, fixed widths ---- */
@@ -2812,9 +2823,9 @@ summary.walking-head::-webkit-details-marker { display: none; }
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <!-- v1.0.61: 主動 cache buster、強制 Safari/Fastly 拿新版 app.js -->
 <!-- v1.0.67-rc1: 拆 feature-b.js + feature-c.js (依賴 window.AppShared, 順序唔可以亂) -->
-<script src="./config.js?v=1.0.67-rc7"></script>
-<script src="./app.js?v=1.0.67-rc7"></script>
-<script src="./feature-b.js?v=1.0.67-rc7"></script>
-<script src="./feature-c.js?v=1.0.67-rc7"></script>
+<script src="./config.js?v=1.0.67-rc8"></script>
+<script src="./app.js?v=1.0.67-rc8"></script>
+<script src="./feature-b.js?v=1.0.67-rc8"></script>
+<script src="./feature-c.js?v=1.0.67-rc8"></script>
 </body>
 </html>
