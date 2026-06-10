@@ -8,7 +8,7 @@
 
 (() => {
   // v1.0.60: 應用版本號（統一管理，邀請碼 pane 顯示）
-  const APP_VERSION = "v1.0.70";
+  const APP_VERSION = "v1.0.71";
   const APP_BUILD_DATE = "2026-06-10";
   window.__APP_VERSION = APP_VERSION;
 
@@ -803,6 +803,60 @@
   }
 
   // -----------------------------------------------------------
+  // v1.0.70: 強制重載 (Level C — 清 cache + unregister SW + reload)
+  // 保留 localStorage (invite code / device fp / display name) 。
+  // -----------------------------------------------------------
+  async function _hardReload() {
+    const ok = window.confirm(
+      "強制重載？\n\n"
+      + "• 會清除頁面 cache + Service Worker\n"
+      + "• 保留邀請碼、顯示名、裝置記錄\n"
+      + "• 網速差可能要等 5-10 秒\n\n"
+      + "確認重載？"
+    );
+    if (!ok) return;
+
+    // Visual feedback
+    try {
+      const overlay = document.createElement("div");
+      overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.7);color:#fff;z-index:99999;display:flex;align-items:center;justify-content:center;font-size:16px;font-family:sans-serif;";
+      overlay.innerHTML = '<div style="text-align:center;"><div style="font-size:32px;margin-bottom:12px;">🔄</div><div>清除 cache 中⋯</div><div style="font-size:12px;opacity:0.7;margin-top:8px;">不要關 page</div></div>';
+      document.body.appendChild(overlay);
+    } catch (e) {}
+
+    // 1. Clear all caches
+    try {
+      if (typeof caches !== "undefined" && caches.keys) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+        console.log("[hard-reload] cleared", keys.length, "caches");
+      }
+    } catch (e) {
+      console.warn("[hard-reload] cache clear failed:", e);
+    }
+
+    // 2. Unregister all SW registrations
+    try {
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+        console.log("[hard-reload] unregistered", regs.length, "SW");
+      }
+    } catch (e) {
+      console.warn("[hard-reload] SW unregister failed:", e);
+    }
+
+    // 3. Force reload with cache-buster (prevents HTTP cache from re-serving)
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set("_cb", String(Date.now()));
+      window.location.replace(url.toString());
+    } catch (e) {
+      window.location.reload();
+    }
+  }
+
+  // -----------------------------------------------------------
   // Onboarding modal: tabs + first-visit auto-show + ? reopen
   // -----------------------------------------------------------
   function setupOnboarding() {
@@ -815,8 +869,20 @@
       const verEl = document.createElement("div");
       verEl.id = "onboardingVersionInfo";
       verEl.style.cssText = "margin-top:18px;padding-top:10px;border-top:1px solid var(--border,#ddd);font-size:11px;color:var(--text-muted,#888);text-align:center;line-height:1.6";
-      verEl.innerHTML = `版本 <strong>${APP_VERSION}</strong> · ${APP_BUILD_DATE}<br><span style="font-size:10px;opacity:0.7">SW: <span id="onboardingSwVer">checking…</span></span><br><span id="onboardingOsmDebug" style="font-size:10px;opacity:0.7">OSM: 未初始化</span>`;
+      verEl.innerHTML = `版本 <strong id="onboardingVersionTap" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px;" title="點一下強制重載、清 cache">${APP_VERSION}</strong> · ${APP_BUILD_DATE}<br><span style="font-size:10px;opacity:0.7">SW: <span id="onboardingSwVer">checking…</span></span><br><span id="onboardingOsmDebug" style="font-size:10px;opacity:0.7">OSM: 未初始化</span>`;
       invitePane.appendChild(verEl);
+
+      // v1.0.70: 難卡 cache / SW 未更新 — 強制重載按鈕 (Level C: 清 cache + unregister SW + reload)
+      const reloadEl = document.createElement("div");
+      reloadEl.style.cssText = "margin-top:12px;text-align:center;";
+      reloadEl.innerHTML = '<button type="button" id="onboardingHardReloadBtn" class="btn" style="font-size:12px;padding:6px 12px;background:#c33;color:#fff;border-color:#c33;">🔄 強制重載（清 cache）</button>'
+        + '<div style="font-size:10px;color:var(--muted,#888);margin-top:4px;">什麼都未生效？按此按鈕重启。保留邀請碼同裝置記錄。</div>';
+      invitePane.appendChild(reloadEl);
+      const hardBtn = reloadEl.querySelector("#onboardingHardReloadBtn");
+      if (hardBtn) hardBtn.addEventListener("click", _hardReload);
+      // 版本號亦可 tap (快捷 alt entry)
+      const verTap = document.getElementById("onboardingVersionTap");
+      if (verTap) verTap.addEventListener("click", _hardReload);
       // v1.0.60: 每次開 modal 刷新 OSM debug
       const refreshOsmDebug = () => {
         const el = document.getElementById("onboardingOsmDebug");
