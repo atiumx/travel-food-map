@@ -60,6 +60,13 @@
       body.querySelectorAll("[data-toggle-id]").forEach(btn => {
         btn.addEventListener("click", () => _onToggle(btn.dataset.toggleId, btn.dataset.toggleTo === "true"));
       });
+      // Wire ⋯ admin popover buttons
+      body.querySelectorAll("[data-more-id]").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          _onMoreClick(btn.dataset.moreId, btn);
+        });
+      });
     }
 
     function _renderRow(c) {
@@ -78,8 +85,10 @@
       const toggleStyle = c.active
         ? "background:#fff;color:#c33;border:1px solid #c33;"
         : "background:#0a0;color:#fff;border:1px solid #0a0;";
+      // v1.0.67-rc9: ⋯ admin menu (Migration 0028)
+      const moreBtn = '<button type="button" data-more-id="' + escapeHtml(c.id) + '" aria-label="更多操作" title="更多" style="font-size:14px;padding:2px 8px;border-radius:3px;cursor:pointer;background:transparent;border:1px solid var(--border,#ddd);color:var(--text,#333);line-height:1;">⋯</button>';
       return `
-        <div style="border:1px solid var(--border,#ddd);border-radius:6px;padding:8px;margin-bottom:6px;">
+        <div style="border:1px solid var(--border,#ddd);border-radius:6px;padding:8px;margin-bottom:6px;position:relative;" data-row-id="${escapeHtml(c.id)}">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
             <div style="flex:1;min-width:0;">
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
@@ -92,10 +101,192 @@
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
               <span style="font-size:10px;color:${statusColor};font-weight:600;text-transform:uppercase;">${statusLabel}</span>
-              <button type="button" data-toggle-id="${escapeHtml(c.id)}" data-toggle-to="${(!c.active).toString()}" style="font-size:11px;padding:3px 8px;border-radius:3px;cursor:pointer;${toggleStyle}">${toggleLabel}</button>
+              <div style="display:flex;gap:4px;">
+                <button type="button" data-toggle-id="${escapeHtml(c.id)}" data-toggle-to="${(!c.active).toString()}" style="font-size:11px;padding:3px 8px;border-radius:3px;cursor:pointer;${toggleStyle}">${toggleLabel}</button>
+                ${moreBtn}
+              </div>
             </div>
           </div>
         </div>`;
+    }
+
+    // ---------- popover menu (v1.0.67-rc9 / Migration 0028) ----------
+    let _openPopoverId = null;
+
+    function _closePopover() {
+      const existing = document.getElementById("inviteAdminPopover");
+      if (existing) existing.remove();
+      _openPopoverId = null;
+      document.removeEventListener("click", _onDocClickClose, true);
+    }
+
+    function _onDocClickClose(e) {
+      const pop = document.getElementById("inviteAdminPopover");
+      if (!pop) { _closePopover(); return; }
+      if (pop.contains(e.target)) return;
+      // Click on ⋯ button 本身 — already handled in _onMoreClick (toggle)
+      if (e.target.closest && e.target.closest("[data-more-id]")) return;
+      _closePopover();
+    }
+
+    function _openPopover(id, anchorBtn) {
+      _closePopover();
+      _openPopoverId = id;
+      const target = _codesCache.find(c => c.id === id);
+      if (!target) return;
+      const pop = document.createElement("div");
+      pop.id = "inviteAdminPopover";
+      pop.setAttribute("role", "menu");
+      pop.style.cssText =
+        "position:absolute;z-index:10001;background:var(--panel,#fff);" +
+        "border:1px solid var(--border,#ccc);border-radius:6px;" +
+        "box-shadow:0 4px 16px rgba(0,0,0,0.2);padding:4px 0;" +
+        "min-width:170px;font-size:13px;";
+      const newRole = target.role === "owner" ? "friend" : "owner";
+      const roleLabel = target.role === "owner" ? "改為 friend" : "改為 owner";
+      pop.innerHTML = [
+        '<button type="button" data-act="label" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:0;cursor:pointer;font-size:13px;color:var(--text,#222);">✏️ 改 label</button>',
+        '<button type="button" data-act="role" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:0;cursor:pointer;font-size:13px;color:var(--text,#222);">🔄 ' + roleLabel + '</button>',
+        '<button type="button" data-act="reset" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:0;cursor:pointer;font-size:13px;color:var(--text,#222);">↺ Reset 計數</button>',
+        '<div style="border-top:1px solid var(--border,#eee);margin:4px 0;"></div>',
+        '<button type="button" data-act="delete" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:0;cursor:pointer;font-size:13px;color:#c33;">🗑️ 刪除</button>'
+      ].join("");
+      // Position relative to viewport (use button rect)
+      const rect = anchorBtn.getBoundingClientRect();
+      pop.style.position = "fixed";
+      pop.style.top = (rect.bottom + 4) + "px";
+      // anchor right edge of pop to right edge of button (and clamp to viewport)
+      const popWidth = 180;
+      let leftPos = rect.right - popWidth;
+      if (leftPos < 8) leftPos = 8;
+      pop.style.left = leftPos + "px";
+      document.body.appendChild(pop);
+      // Wire actions
+      pop.querySelectorAll("[data-act]").forEach(b => {
+        b.addEventListener("click", () => {
+          const act = b.dataset.act;
+          _closePopover();
+          if (act === "label") _onEditLabel(target);
+          else if (act === "role") _onChangeRole(target);
+          else if (act === "reset") _onResetUseCount(target);
+          else if (act === "delete") _onDelete(target);
+        });
+      });
+      // Outside click 關
+      setTimeout(() => document.addEventListener("click", _onDocClickClose, true), 0);
+    }
+
+    function _onMoreClick(id, btn) {
+      if (_openPopoverId === id) { _closePopover(); return; }
+      _openPopover(id, btn);
+    }
+
+    // ---------- 4 admin handlers ----------
+    async function _onEditLabel(target) {
+      const cur = target.label || "";
+      const next = await appDialog.prompt({
+        title: "改 label",
+        message: "輸入新 label (興 1-64 字元):",
+        defaultValue: cur,
+        okText: "保存",
+        cancelText: "取消"
+      });
+      if (next == null) return;
+      const clean = String(next).trim();
+      if (!clean) { showToast("label 不可空"); return; }
+      if (clean === cur) return;
+      try {
+        const { error } = await sb.rpc("admin_update_invite_label", {
+          p_invite_code: state.inviteCode,
+          p_target_invite_id: target.id,
+          p_new_label: clean
+        });
+        if (error) throw error;
+        showToast("label 已更新");
+        await refreshList();
+      } catch (e) {
+        const msg = (e.message || String(e));
+        if (msg.indexOf("invalid_label") >= 0) showToast("label 要 1-64 字元");
+        else if (msg.indexOf("not_owner") >= 0) showToast("仅 owner 可修改");
+        else showToast("失敗：" + msg);
+      }
+    }
+
+    async function _onChangeRole(target) {
+      const newRole = target.role === "owner" ? "friend" : "owner";
+      const ok = await appDialog.confirm({
+        title: "改 role",
+        message: "將「" + (target.label || "") + "」 role 由 " + target.role + " 改為 " + newRole + " ？",
+        okText: "確認",
+        cancelText: "取消",
+        danger: (newRole === "owner")
+      });
+      if (!ok) return;
+      try {
+        const { error } = await sb.rpc("admin_update_invite_role", {
+          p_invite_code: state.inviteCode,
+          p_target_invite_id: target.id,
+          p_new_role: newRole
+        });
+        if (error) throw error;
+        showToast("role 已改為 " + newRole);
+        await refreshList();
+      } catch (e) {
+        const msg = (e.message || String(e));
+        if (msg.indexOf("last_active_owner") >= 0) appDialog.alert({ title: "不能修改", message: "這係唯一的 active owner，不可變成 friend。先新增另一個 active owner 再試。" });
+        else if (msg.indexOf("cannot_demote_self") >= 0) appDialog.alert({ title: "不能修改", message: "不能修改你使用中的 owner code 為 friend。" });
+        else showToast("失敗：" + msg);
+      }
+    }
+
+    async function _onResetUseCount(target) {
+      const ok = await appDialog.confirm({
+        title: "Reset 使用計數",
+        message: "將「" + (target.label || "") + "」 使用計數由 " + target.use_count + " 重設為 0 ？",
+        okText: "Reset",
+        cancelText: "取消",
+        danger: true
+      });
+      if (!ok) return;
+      try {
+        const { error } = await sb.rpc("admin_reset_invite_use_count", {
+          p_invite_code: state.inviteCode,
+          p_target_invite_id: target.id
+        });
+        if (error) throw error;
+        showToast("計數已 reset");
+        await refreshList();
+      } catch (e) {
+        showToast("失敗：" + (e.message || String(e)));
+      }
+    }
+
+    async function _onDelete(target) {
+      // double-confirm: 要 type "DELETE"
+      const typed = await appDialog.prompt({
+        title: "刪除邀請碼",
+        message: "這是不可逆操作。如要刪除「" + (target.label || "") + "」，請輸入 DELETE 確認：",
+        defaultValue: "",
+        okText: "刪除",
+        cancelText: "取消",
+        danger: true
+      });
+      if (typed == null) return;
+      if (String(typed).trim() !== "DELETE") { showToast("未輸入 DELETE，已取消"); return; }
+      try {
+        const { error } = await sb.rpc("admin_delete_invite_code", {
+          p_invite_code: state.inviteCode,
+          p_target_invite_id: target.id
+        });
+        if (error) throw error;
+        showToast("已刪除：" + (target.label || ""));
+        await refreshList();
+      } catch (e) {
+        const msg = (e.message || String(e));
+        if (msg.indexOf("cannot_delete_self") >= 0) appDialog.alert({ title: "不能刪除", message: "不能刪除你使用中的邀請碼。" });
+        else if (msg.indexOf("last_active_owner") >= 0) appDialog.alert({ title: "不能刪除", message: "這係唯一的 active owner，不可刪除。先新增另一個 active owner 再試。" });
+        else showToast("失敗：" + msg);
+      }
     }
 
     async function _onToggle(id, newActive) {
