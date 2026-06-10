@@ -1114,98 +1114,85 @@ summary.walking-head::-webkit-details-marker { display: none; }
   .sidebar header #roleBadge {
     display: none !important;
   }
-  /* Bug F fix (Round 2): lang switch + theme toggle floated to top-right under mapStyleSelect */
-  .sidebar header #langSwitch {
-    position: fixed;
-    top: calc(60px + var(--sat, 0px));
-    right: calc(8px + var(--sar, 0px));
-    z-index: 1050;
-    background: rgba(255,255,255,0.82);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    color: #1a1a1a;
-    border: 1px solid rgba(0,0,0,0.12);
-    font-size: 13px;
-    padding: 8px 10px;
-    border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-    min-height: 36px;
-    margin: 0;
-    transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
-  }
-  .sidebar header #themeToggle {
-    position: fixed;
-    top: calc(60px + var(--sat, 0px));
-    right: calc(88px + var(--sar, 0px));
-    z-index: 1050;
-    width: 36px; height: 36px;
-    background: rgba(255,255,255,0.82);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(0,0,0,0.12);
-    border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-    padding: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px; line-height: 1;
-    margin: 0;
-    transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
-  }
-  body.fab-hidden .sidebar header #langSwitch,
-  body.fab-hidden .sidebar header #themeToggle {
-    opacity: 0; visibility: hidden; transform: translateY(-8px); pointer-events: none;
-  }
-  /* Float mapStyleSelect to map top-right corner */
-  /* Bug E fix (Round 2): match tripAreaSelect style (14px font, consistent padding) */
-  .sidebar header #mapStyleSelect {
-    position: fixed;
-    top: calc(8px + var(--sat, 0px));
-    right: calc(8px + var(--sar, 0px));
-    margin: 0;
-    z-index: 1050;
-    background: rgba(255,255,255,0.82);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    color: #1a1a1a;
-    border: 1px solid rgba(0,0,0,0.12);
-    font-size: 14px;
-    font-weight: 600;
-    padding: 10px 14px;
-    border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-    min-height: 44px;
-    transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
-  }
-  /* Onboarding help (?) button — v1.0.67-rc5 #3 round 4:
-     最終位置：放在地圖右上 OSM 揀選下面（langSwitch 左邊），同系統 controls
-     同一區。位置固定 viewport-anchored，不跟 sheet 拖動。sheet 展開時点到 sheet
-     掩蓋之下、跟其他 system controls 一起 fade 出來。 */
+  /* v1.0.67-rc6: 右上角 system controls 統一 stack
+     設計：4 個 controls 垂直堆疊，全部 right: 8px 對齊，同高度 36px，
+     同 background / border / shadow。gap 6px。
+     Stack 順序 (從頂到底)：
+       1. mapStyleSelect (地圖樣式)  top:  8px
+       2. langSwitch     (語言)        top: 50px
+       3. themeToggle    (主題)        top: 92px
+       4. onboardingHelpBtn (說明)     top: 134px */
+
+  /* 共同 style for all 4 controls */
+  .sidebar header #mapStyleSelect,
+  .sidebar header #langSwitch,
+  .sidebar header #themeToggle,
   .sidebar #onboardingHelpBtn,
   .sidebar header #onboardingHelpBtn {
     position: fixed !important;
-    top: calc(104px + var(--sat, 0px)) !important;  /* mapStyleSelect top:8px(+44h) → langSwitch top:60px(+36h) → ? top:104px (跨 langSwitch 8px) */
     right: calc(8px + var(--sar, 0px)) !important;
     left: auto !important;
-    margin: 0 !important;
     z-index: 1050 !important;
-    width: 36px !important; height: 36px !important;
-    padding: 0 !important;
-    display: flex !important; align-items: center !important; justify-content: center !important;
-    font-size: 16px !important; font-weight: 700 !important; line-height: 1 !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    margin: 0 !important;
     background: rgba(255,255,255,0.82) !important;
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     color: #1a1a1a !important;
     border: 1px solid rgba(0,0,0,0.12) !important;
     border-radius: 10px !important;
     box-shadow: 0 2px 8px rgba(0,0,0,0.18) !important;
-    cursor: pointer !important;
-    transition: opacity 0.2s, transform 0.2s, visibility 0.2s !important;
+    box-sizing: border-box !important;
+    transition: opacity 0.2s, transform 0.2s, visibility 0.2s, top 0.2s !important;
+    display: flex !important; align-items: center !important; justify-content: center !important;
   }
-  .sidebar #onboardingHelpBtn:active { transform: scale(0.92); }
-  /* sheet 掃到展開時，跟 langSwitch/themeToggle 一同隱 (避免遮到 list) */
+
+  /* 各自位置 + 內在 sizing */
+  .sidebar header #mapStyleSelect {
+    top: calc(8px + var(--sat, 0px)) !important;
+    min-width: 96px !important;
+    padding: 0 12px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+  }
+  .sidebar header #langSwitch {
+    top: calc(50px + var(--sat, 0px)) !important;
+    min-width: 96px !important;
+    padding: 0 10px !important;
+    font-size: 13px !important;
+  }
+  .sidebar header #themeToggle {
+    top: calc(92px + var(--sat, 0px)) !important;
+    width: 36px !important;
+    padding: 0 !important;
+    font-size: 16px !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+  }
+  .sidebar #onboardingHelpBtn,
+  .sidebar header #onboardingHelpBtn {
+    top: calc(134px + var(--sat, 0px)) !important;
+    width: 36px !important;
+    padding: 0 !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+  }
+  .sidebar #onboardingHelpBtn:active,
+  .sidebar header #themeToggle:active { transform: scale(0.92); }
+
+  /* sheet 展開時 (fab-hidden) 全部 fade out (避免遮到 list) */
+  body.fab-hidden .sidebar header #mapStyleSelect,
+  body.fab-hidden .sidebar header #langSwitch,
+  body.fab-hidden .sidebar header #themeToggle,
   body.fab-hidden .sidebar #onboardingHelpBtn,
   body.fab-hidden .sidebar header #onboardingHelpBtn {
-    opacity: 0 !important; visibility: hidden !important; transform: translateY(-8px) !important; pointer-events: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transform: translateY(-8px) !important;
+    pointer-events: none !important;
   }
 
   /* Hide map style picker when sheet covers map */
@@ -2798,9 +2785,9 @@ summary.walking-head::-webkit-details-marker { display: none; }
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <!-- v1.0.61: 主動 cache buster、強制 Safari/Fastly 拿新版 app.js -->
 <!-- v1.0.67-rc1: 拆 feature-b.js + feature-c.js (依賴 window.AppShared, 順序唔可以亂) -->
-<script src="./config.js?v=1.0.67-rc5"></script>
-<script src="./app.js?v=1.0.67-rc5"></script>
-<script src="./feature-b.js?v=1.0.67-rc5"></script>
-<script src="./feature-c.js?v=1.0.67-rc5"></script>
+<script src="./config.js?v=1.0.67-rc6"></script>
+<script src="./app.js?v=1.0.67-rc6"></script>
+<script src="./feature-b.js?v=1.0.67-rc6"></script>
+<script src="./feature-c.js?v=1.0.67-rc6"></script>
 </body>
 </html>
