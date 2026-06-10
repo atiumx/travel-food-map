@@ -8,7 +8,7 @@
 
 (() => {
   // v1.0.60: 應用版本號（統一管理，邀請碼 pane 顯示）
-  const APP_VERSION = "v1.0.67-rc1";
+  const APP_VERSION = "v1.0.67-rc2";
   const APP_BUILD_DATE = "2026-06-10";
   window.__APP_VERSION = APP_VERSION;
 
@@ -686,7 +686,8 @@
   function renderEmptyState() {
     const dict = I18N[getLang()] || I18N["zh-TW"];
     let icon, title, hint;
-    const q = (state.filters && (state.filters.search || "")).trim();
+    // v1.0.67-rc2 fix: state.filters 可能 undefined，不要 short-circuit 返 false
+    const q = ((state.filters && state.filters.search) || "").trim();
     if (state.walking && state.walking.enabled) {
       icon = '<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="7"/><path d="M12 17v5"/><circle cx="12" cy="10" r="2.5"/></svg>';
       title = dict["empty.walking.title"] || "步行圈內未有地點";
@@ -4255,7 +4256,10 @@
       roleBadge.className = "role-badge guest";
     }
     const canWrite = state.role !== "guest";
-    addPlaceBtn.disabled = !canWrite;
+    // v1.0.67-rc2 fix #4: 新增地點 btn 只 owner 用，friend 不需 (走推薦地點流程)
+    // 原因：friend 可用「推薦地點」提交 link， owner audit 後批量 upload，不應跳過「儲低佬經我審核」 DNA。
+    addPlaceBtn.disabled = !canWrite || state.role !== "owner";
+    addPlaceBtn.hidden   = (state.role !== "owner");
     $("addReviewBtn").disabled = !canWrite;
     $("addSuggestionBtn").disabled = !canWrite;
     $("placePhotoBtn").disabled = !canWrite;
