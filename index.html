@@ -2103,8 +2103,12 @@ summary.walking-head::-webkit-details-marker { display: none; }
           <!-- Owner-only: 管理所有邀請碼。Hidden by default; toggled by app.js when state.role === 'owner'. -->
           <details id="onboardingOwnerCodesSection" hidden style="margin-top:8px;border:1px solid var(--border);border-radius:6px;padding:8px;">
             <summary style="cursor:pointer;font-size:13px;font-weight:600">⚙ 管理邀請碼（owner only）</summary>
-            <div id="onboardingOwnerCodesBody" style="margin-top:8px;font-size:12px;color:var(--text-muted, #888)">
-              <p class="onboarding-hint" style="margin:0">後端 RPC 仲未實裝。下一階段同 Feature B 一齊上 migration（list_owner_invite_codes / create_invite_code / toggle_invite_code_active）。</p>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;">
+              <button type="button" id="ownerCodesNewBtn" class="btn primary" style="font-size:13px;padding:6px 10px;">+ 新增邀請碼</button>
+              <button type="button" id="ownerCodesRefreshBtn" class="icon-btn-refresh" title="重新拉取">↻</button>
+            </div>
+            <div id="onboardingOwnerCodesBody" style="margin-top:8px;font-size:12px;color:var(--text-muted, #888);max-height:50vh;overflow-y:auto;">
+              <p class="onboarding-hint" style="margin:0">載入中⋯</p>
             </div>
           </details>
         </div>
@@ -2342,6 +2346,61 @@ summary.walking-head::-webkit-details-marker { display: none; }
   </div>
 </div>
 
+<!-- v1.0.66 Feature C: 新增邀請碼 modal -->
+<div class="modal-bg" id="createInviteCodeModal">
+  <div class="modal" style="max-width:480px;">
+    <h2 style="margin-bottom:8px;">+ 新增邀請碼</h2>
+    <p style="font-size:12px;color:var(--muted, #888);margin-top:0;">Code 由系統自動生成，建立後只會顯示一次。</p>
+
+    <label style="font-size:13px;display:block;margin-top:10px;">標籤（label）*</label>
+    <input id="cicLabel" type="text" maxlength="200" placeholder="例如：朋友 Andy / 家人 fm2611" style="width:100%;box-sizing:border-box;" />
+
+    <label style="font-size:13px;display:block;margin-top:10px;">角色</label>
+    <div class="chip-row" id="cicRoleRow" style="gap:8px;">
+      <button type="button" class="chip active" data-role="friend">Friend</button>
+      <button type="button" class="chip" data-role="owner">Owner</button>
+    </div>
+
+    <label style="font-size:13px;display:block;margin-top:10px;">最大使用次數（可留空 = 無限）</label>
+    <input id="cicMaxUses" type="number" min="1" max="9999" placeholder="留空" style="width:100%;box-sizing:border-box;" />
+
+    <label style="font-size:13px;display:block;margin-top:10px;">過期時間（可留空 = 永不）</label>
+    <div class="chip-row" id="cicExpiresRow" style="gap:6px;margin-bottom:6px;">
+      <button type="button" class="chip active" data-expires="never">永不</button>
+      <button type="button" class="chip" data-expires="1m">1 個月</button>
+      <button type="button" class="chip" data-expires="6m">半年</button>
+      <button type="button" class="chip" data-expires="1y">1 年</button>
+      <button type="button" class="chip" data-expires="custom">自訂</button>
+    </div>
+    <input id="cicExpiresAt" type="datetime-local" hidden style="width:100%;box-sizing:border-box;" />
+
+    <p id="cicMsg" class="onboarding-msg" hidden style="margin-top:10px"></p>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+      <button type="button" id="cicCancel" class="btn">取消</button>
+      <button type="button" id="cicConfirm" class="btn primary">建立</button>
+    </div>
+  </div>
+</div>
+
+<!-- v1.0.66 Feature C: 一次性顯示新生成嘅 code -->
+<div class="modal-bg" id="inviteCodeCreatedModal">
+  <div class="modal" style="max-width:480px;">
+    <h2 style="margin-bottom:8px;">✓ 邀請碼已建立</h2>
+    <p style="font-size:13px;color:#c33;margin-top:0;font-weight:600;">⚠ 呢個係唯一一次顯示，請即刻 copy 並安全儲存。</p>
+
+    <div id="iccCodeBox" style="margin:14px 0;padding:14px;background:var(--hover-bg,#f5f5f5);border:2px dashed var(--border,#ddd);border-radius:8px;text-align:center;">
+      <div id="iccCodePlaintext" style="font-family:monospace;font-size:24px;font-weight:700;letter-spacing:2px;user-select:all;">—</div>
+      <div id="iccMetaRow" style="font-size:12px;color:var(--muted,#888);margin-top:6px;"></div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;gap:8px;margin-top:14px;">
+      <button type="button" id="iccCopyBtn" class="btn">📋 Copy code</button>
+      <button type="button" id="iccCloseBtn" class="btn primary">我已記低</button>
+    </div>
+  </div>
+</div>
+
 <!-- v1.0.65 #3/#8: 通用 confirm/prompt modal (取代 native alert/prompt/confirm) -->
 <div class="modal-bg" id="appDialogModal">
   <div class="modal" style="max-width:480px;">
@@ -2435,7 +2494,7 @@ summary.walking-head::-webkit-details-marker { display: none; }
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <!-- v1.0.61: 主動 cache buster、強制 Safari/Fastly 拿新版 app.js -->
-<script src="./config.js?v=1.0.65"></script>
-<script src="./app.js?v=1.0.65"></script>
+<script src="./config.js?v=1.0.66"></script>
+<script src="./app.js?v=1.0.66"></script>
 </body>
 </html>
