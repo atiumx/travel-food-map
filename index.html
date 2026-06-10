@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content" />
 <title>旅行美食地圖</title>
 <meta name="theme-color" content="#d84315" />
 <meta name="description" content="九州 + 大阪美食地圖：步行圈、評論、照片、車站 anchor" />
@@ -1047,17 +1047,20 @@ summary.walking-head::-webkit-details-marker { display: none; }
     position: relative;
   }
   .map-wrap, #map {
-    height: 100dvh;
+    /* v1.0.67-rc10: use --vvh (real visible height from visualViewport) so map
+       doesn't extend under Chrome iOS bottom toolbar. Fallback to 100dvh. */
+    height: var(--vvh, 100dvh);
     width: 100%;
   }
 
   .sidebar {
     /* Bottom-sheet anchored to viewport bottom.
        Sidebar TOP at fixed offset (--sheet-top), bottom at screen edge.
-       This keeps the entire sheet inside viewport so footer-actions always visible. */
+       This keeps the entire sheet inside viewport so footer-actions always visible.
+       v1.0.67-rc10: peek/half/full positions use --vvh to respect Chrome iOS toolbar. */
     position: fixed;
     left: 0; right: 0;
-    top: var(--sheet-top, calc(100dvh - var(--sheet-peek, 140px)));
+    top: var(--sheet-top, calc(var(--vvh, 100dvh) - var(--sheet-peek, 140px)));
     bottom: 0;
     width: 100%;
     max-width: 100%;
@@ -1070,9 +1073,10 @@ summary.walking-head::-webkit-details-marker { display: none; }
     transform: none;
     transition: top 0.28s cubic-bezier(0.4, 0, 0.2, 1);
     will-change: top;
-    padding-bottom: var(--sab);
+    /* v1.0.67-rc10: include browser chrome pad (Chrome iOS toolbar ~88px) on top of safe-area */
+    padding-bottom: calc(var(--sab) + var(--browser-chrome-pad, 0px));
   }
-  .sidebar.snap-half { top: 48dvh; }
+  .sidebar.snap-half { top: calc(var(--vvh, 100dvh) * 0.48); }
   .sidebar.snap-full { top: calc(44px + var(--sat)); }
   .sidebar.dragging { transition: none; }
   /* Drag handle */
@@ -2823,9 +2827,9 @@ summary.walking-head::-webkit-details-marker { display: none; }
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <!-- v1.0.61: 主動 cache buster、強制 Safari/Fastly 拿新版 app.js -->
 <!-- v1.0.67-rc1: 拆 feature-b.js + feature-c.js (依賴 window.AppShared, 順序唔可以亂) -->
-<script src="./config.js?v=1.0.67-rc9"></script>
-<script src="./app.js?v=1.0.67-rc9"></script>
-<script src="./feature-b.js?v=1.0.67-rc9"></script>
-<script src="./feature-c.js?v=1.0.67-rc9"></script>
+<script src="./config.js?v=1.0.67-rc10"></script>
+<script src="./app.js?v=1.0.67-rc10"></script>
+<script src="./feature-b.js?v=1.0.67-rc10"></script>
+<script src="./feature-c.js?v=1.0.67-rc10"></script>
 </body>
 </html>

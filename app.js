@@ -8,7 +8,7 @@
 
 (() => {
   // v1.0.60: 應用版本號（統一管理，邀請碼 pane 顯示）
-  const APP_VERSION = "v1.0.67-rc9";
+  const APP_VERSION = "v1.0.67-rc10";
   const APP_BUILD_DATE = "2026-06-10";
   window.__APP_VERSION = APP_VERSION;
 
@@ -1273,9 +1273,14 @@
     function updateFabFromSheet() {
       if (!isMobile()) return;
       const rect = sheet.getBoundingClientRect();
-      const vh = window.innerHeight;
-      // FAB sits 12px above sheet top edge
-      const fabBottom = vh - rect.top + 12;
+      // v1.0.67-rc10: use visualViewport.height (real visible area) instead of innerHeight,
+      // so FAB stack stays above Chrome iOS bottom toolbar (~88px).
+      const vv = window.visualViewport;
+      const vh = vv ? vv.height : window.innerHeight;
+      const chromePad = Math.max(0, window.innerHeight - vh);
+      // FAB sits 12px above sheet top edge, plus account for browser chrome pad so the
+      // last FAB is fully visible even when toolbar covers part of innerHeight.
+      const fabBottom = (window.innerHeight - rect.top) + 12 + chromePad;
       document.documentElement.style.setProperty("--fab-bottom", `${fabBottom}px`);
       // Hide FAB when sheet is near top (< 140px from viewport top): map barely visible
       const tooHigh = rect.top < 140;
@@ -1324,7 +1329,8 @@
     function onMove(clientY) {
       if (!dragging) return;
       const dy = clientY - startY;
-      const vh = window.innerHeight;
+      // v1.0.67-rc10: use visualViewport for real visible height (Chrome iOS toolbar aware)
+      const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
       const minTop = 44; // full-snap upper bound
       const maxTop = vh - 80; // never push beyond near-bottom
       const newTop = Math.max(minTop, Math.min(maxTop, startTranslate + dy));
@@ -1336,7 +1342,7 @@
       dragging = false;
       sheet.classList.remove("dragging");
       const dy = clientY - startY;
-      const vh = window.innerHeight;
+      const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
       // Decide snap by current position + drag delta direction
       const endY = sheet.getBoundingClientRect().top;
       const fullThreshold = 100;            // near top
@@ -1374,6 +1380,34 @@
     });
 
     window.__sheetSnapTo = snapTo;
+
+    // v1.0.67-rc10: Chrome iOS bottom toolbar (~88px) covers sheet bottom because
+    // 100dvh includes toolbar height. Use visualViewport.height for the real visible
+    // height and expose it as --vvh + --browser-chrome-pad (delta vs innerHeight).
+    function updateVisualViewport() {
+      const vv = window.visualViewport;
+      const innerH = window.innerHeight;
+      const visibleH = vv ? vv.height : innerH;
+      const chromePad = Math.max(0, innerH - visibleH);
+      document.documentElement.style.setProperty("--vvh", `${visibleH}px`);
+      document.documentElement.style.setProperty("--browser-chrome-pad", `${chromePad}px`);
+    }
+    updateVisualViewport();
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", () => {
+        updateVisualViewport();
+        updateFabFromSheet();
+      });
+      window.visualViewport.addEventListener("scroll", updateVisualViewport);
+    }
+
+    // v1.0.67-rc10: unified re-sync hook callable from anywhere (e.g. updateRoleUI
+    // when footer-actions buttons show/hide and shift sheet content height).
+    window.__resyncSheetLayout = function () {
+      updateVisualViewport();
+      updateFabFromSheet();
+    };
+
     // Initialize body sheet-peek class + first FAB sync
     document.body.classList.add("sheet-peek");
     // Initial sync after layout settles
@@ -1389,8 +1423,8 @@
         }
       }
     });
-    window.addEventListener("resize", updateFabFromSheet);
-    window.addEventListener("orientationchange", () => setTimeout(updateFabFromSheet, 100));
+    window.addEventListener("resize", () => { updateVisualViewport(); updateFabFromSheet(); });
+    window.addEventListener("orientationchange", () => setTimeout(() => { updateVisualViewport(); updateFabFromSheet(); }, 100));
 
     // R7 fix: prevent UA auto-scroll on <input> focus (e.g. walking checkbox click)
     // from scrolling the sidebar itself and pushing #sheetHandle out of viewport.
@@ -4278,6 +4312,18 @@
     // v1.0.64 Push 3: 📋 我嘅推薦 = friend + owner (自助查自己 submit 過嘅 list)
     if (mySubBtn)   mySubBtn.hidden   = (state.role === "guest");
     if (typeof FeatureB !== "undefined" && FeatureB.refreshDebugPane) FeatureB.refreshDebugPane();
+
+    // v1.0.67-rc10: role change can show/hide footer-actions buttons (addPlaceBtn / pendingBtn etc),
+    // which changes sheet content height. Re-sync sheet position + FAB stack to avoid
+    // layout drift (especially on Chrome iOS where viewport handling differs from Safari).
+    try {
+      requestAnimationFrame(() => {
+        if (typeof window.__resyncSheetLayout === "function") window.__resyncSheetLayout();
+        if (map && typeof map.invalidateSize === "function") {
+          map.invalidateSize({ animate: false, pan: false });
+        }
+      });
+    } catch (e) { /* silent */ }
   }
 
   // -----------------------------------------------------------
