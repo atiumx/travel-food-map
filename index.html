@@ -1814,6 +1814,7 @@ summary.walking-head::-webkit-details-marker { display: none; }
       <div class="submission-toolbar" id="submissionToolbar" style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
         <button class="btn submission-btn" id="recentFriendBtn" type="button" title="最近朋友推薦過嘅地點" style="flex:1;min-width:0;font-size:13px;">🆕 最近朋友推薦</button>
         <button class="btn submission-btn" id="submitPlaceBtn" type="button" title="推薦新地點畀 HM 審核" hidden style="flex:1;min-width:0;font-size:13px;">📨 推薦地點</button>
+        <button class="btn submission-btn" id="mySubmissionsBtn" type="button" title="查看自己過往 submit 過嘅推薦" hidden style="flex:1;min-width:0;font-size:13px;">📋 我嘅推薦</button>
         <button class="btn submission-btn" id="pendingListBtn" type="button" title="審核待處理嘅推薦" hidden style="flex:1;min-width:0;font-size:13px;">🌟 最近推薦</button>
       </div>
       <button class="btn primary" id="addPlaceBtn" disabled>新增地點</button>
@@ -2218,7 +2219,28 @@ summary.walking-head::-webkit-details-marker { display: none; }
     </h2>
     <p style="font-size:12px;color:var(--muted, #888);margin-top:-4px;">tap 條 submission 開詳情、resolve 同 approve / reject。</p>
 
+    <!-- v1.0.64 Push 3: 全部 resolve -->
+    <div id="pendingListBulkBar" style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:12px;">
+      <button class="btn" id="pendingListBulkResolveBtn" type="button" style="font-size:12px;padding:4px 10px;">🔄 全部 resolve</button>
+      <span id="pendingListBulkStatus" style="color:var(--muted, #888);"></span>
+    </div>
+
     <div id="pendingListBody" style="margin-top:10px;display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow-y:auto;">
+      <div style="text-align:center;color:var(--muted, #888);padding:20px;">載入中…</div>
+    </div>
+  </div>
+</div>
+
+<!-- 5️⃣ 我嘅推薦 modal (friend + owner self-query) -->
+<div class="modal-bg" id="mySubmissionsModal">
+  <div class="modal" style="max-width:600px;">
+    <h2 style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <span>📋 我嘅推薦</span>
+      <button class="btn" id="mySubmissionsClose" type="button" style="font-size:14px;padding:4px 10px;">關閉</button>
+    </h2>
+    <p style="font-size:12px;color:var(--muted, #888);margin-top:-4px;">你過往 submit 過嘅推薦同 status，最多 100 條。</p>
+
+    <div id="mySubmissionsBody" style="margin-top:10px;display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow-y:auto;">
       <div style="text-align:center;color:var(--muted, #888);padding:20px;">載入中…</div>
     </div>
   </div>
@@ -2298,7 +2320,7 @@ summary.walking-head::-webkit-details-marker { display: none; }
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <!-- v1.0.61: 主動 cache buster、強制 Safari/Fastly 拿新版 app.js -->
-<script src="./config.js?v=1.0.63"></script>
-<script src="./app.js?v=1.0.63"></script>
+<script src="./config.js?v=1.0.64"></script>
+<script src="./app.js?v=1.0.64"></script>
 </body>
 </html>

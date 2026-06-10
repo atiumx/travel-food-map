@@ -8,7 +8,7 @@
 
 (() => {
   // v1.0.60: 應用版本號（統一管理，邀請碼 pane 顯示）
-  const APP_VERSION = "v1.0.63";
+  const APP_VERSION = "v1.0.64";
   const APP_BUILD_DATE = "2026-06-10";
   window.__APP_VERSION = APP_VERSION;
 
@@ -4186,8 +4186,11 @@
     // 🌟 最近推薦    = owner only
     const submitBtn = $("submitPlaceBtn");
     const pendingBtn = $("pendingListBtn");
+    const mySubBtn = $("mySubmissionsBtn");
     if (submitBtn)  submitBtn.hidden  = (state.role === "guest");
     if (pendingBtn) pendingBtn.hidden = (state.role !== "owner");
+    // v1.0.64 Push 3: 📋 我嘅推薦 = friend + owner (自助查自己 submit 過嘅 list)
+    if (mySubBtn)   mySubBtn.hidden   = (state.role === "guest");
     if (typeof FeatureB !== "undefined" && FeatureB.refreshDebugPane) FeatureB.refreshDebugPane();
   }
 
@@ -4583,6 +4586,8 @@
     let _currentResolve = null;       // { submission, resolvedData, notes, manualFill }
     let _lastSubmissionId = null;     // for debug pane
     let _debugObserver = null;
+    let _pendingListCache = [];       // v1.0.64 Push 3: cache for 🔄 bulk resolve
+    let _bulkResolveRunning = false;  // v1.0.64 Push 3: guard against double-click
 
     // ----- helpers -----
     function $$(id) { return document.getElementById(id); }
@@ -4763,17 +4768,22 @@
         });
         if (error) throw error;
         if (!data || data.length === 0) {
+          _pendingListCache = [];
           bodyEl.innerHTML = '<div style="text-align:center;color:#888;padding:20px;">未見到待審核 submission</div>';
+          _updateBulkBarStatus();
           return;
         }
+        _pendingListCache = data;
         bodyEl.innerHTML = data.map(s => _renderPendingRow(s)).join("");
         bodyEl.querySelectorAll("[data-pid]").forEach(row => {
           row.addEventListener("click", () => {
             const sid = row.dataset.pid;
-            const s = data.find(x => x.id === sid);
+            const s = _pendingListCache.find(x => x.id === sid);
             if (s) openResolveModal(s);
           });
         });
+        // v1.0.64 Push 3: update bulk bar status with counts of resolvable rows
+        _updateBulkBarStatus();
       } catch (e) {
         bodyEl.innerHTML = '<div style="color:#c33;padding:12px;">載入失敗：' + escapeHtml(e.message || String(e)) + '</div>';
       }
@@ -4973,6 +4983,145 @@
     }
 
     // ============================================================
+    // v1.0.64 Push 3: 🔄 全部 resolve (bulk lazy-resolve pending + resolve_failed)
+    // ============================================================
+    function _updateBulkBarStatus() {
+      const span = $$("pendingListBulkStatus");
+      const btn = $$("pendingListBulkResolveBtn");
+      if (!span || !btn) return;
+      const resolvable = _pendingListCache.filter(s =>
+        s.status === "pending" || s.status === "resolve_failed"
+      );
+      const total = _pendingListCache.length;
+      span.textContent = total === 0 ? "" : ("可 resolve: " + resolvable.length + " / " + total);
+      btn.disabled = (resolvable.length === 0) || _bulkResolveRunning;
+    }
+    async function _bulkResolve() {
+      if (_bulkResolveRunning) return;
+      const targets = _pendingListCache.filter(s =>
+        s.status === "pending" || s.status === "resolve_failed"
+      );
+      if (targets.length === 0) { showToast("沒有需要 resolve 嘅 submission"); return; }
+      if (!confirm("將對 " + targets.length + " 条 submission 逐個呼叫 Edge Function。需要約 " + Math.round(targets.length * 1.5) + " 秒，繼續？")) return;
+
+      _bulkResolveRunning = true;
+      const btn = $$("pendingListBulkResolveBtn");
+      const span = $$("pendingListBulkStatus");
+      if (btn) btn.disabled = true;
+      let ok = 0, fail = 0;
+      for (let i = 0; i < targets.length; i++) {
+        const s = targets[i];
+        if (span) span.textContent = "正在解析 " + (i + 1) + " / " + targets.length + "…";
+        try {
+          const r = await fetch(RESOLVE_FN_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer " + cfg.SUPABASE_ANON_KEY,
+              "apikey": cfg.SUPABASE_ANON_KEY
+            },
+            body: JSON.stringify({ submission_id: s.id })
+          });
+          if (!r.ok) {
+            const j = await r.json().catch(() => ({}));
+            throw new Error(j.error || ("HTTP " + r.status));
+          }
+          ok++;
+        } catch (e) {
+          fail++;
+          console.warn("bulk resolve failed for", s.id, e);
+        }
+        // 1.5s gap between calls to be nice to Edge Function + 3rd-party APIs
+        if (i < targets.length - 1) await new Promise(res => setTimeout(res, 1500));
+      }
+      if (span) span.textContent = "完成：成功 " + ok + " · 失敗 " + fail;
+      _bulkResolveRunning = false;
+      // Refresh pending list to reflect updated statuses
+      try { await openPendingListModal(); } catch (e) { /* modal stays open */ }
+      showToast("bulk resolve 完成：成功 " + ok + " / 失敗 " + fail);
+    }
+
+    // ============================================================
+    // v1.0.64 Push 3: 📋 我嘅推薦 modal (friend + owner) — self-query via list_my_submissions RPC
+    // ============================================================
+    async function openMySubmissionsModal() {
+      if (state.role === "guest") { showToast("請先輸入邀請碼"); return; }
+      openModal("mySubmissionsModal");
+      const bodyEl = $$("mySubmissionsBody");
+      bodyEl.innerHTML = '<div style="text-align:center;color:#888;padding:20px;">載入中…</div>';
+      try {
+        const { data, error } = await sb.rpc("list_my_submissions", {
+          p_invite_code: state.inviteCode,
+          p_display_name: state.displayName
+        });
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          bodyEl.innerHTML = '<div style="text-align:center;color:#888;padding:20px;">你還未 submit 過任何推薦</div>';
+          return;
+        }
+        bodyEl.innerHTML = data.map(s => _renderMySubmissionRow(s)).join("");
+        // Wire flyTo for approved place links
+        bodyEl.querySelectorAll("[data-flyto-pid]").forEach(a => {
+          a.addEventListener("click", (e) => {
+            e.preventDefault();
+            const pid = a.dataset.flytoPid;
+            const p = (state.places || []).find(x => x.id === pid);
+            if (p && typeof map !== "undefined" && map && p.lat != null && p.lng != null) {
+              closeModal("mySubmissionsModal");
+              map.flyTo([p.lat, p.lng], 17, { duration: 0.6 });
+              if (typeof state !== "undefined") state.selectedPlaceId = p.id;
+            } else {
+              showToast("找不到 place 或地圖未初始化");
+            }
+          });
+        });
+      } catch (e) {
+        bodyEl.innerHTML = '<div style="color:#c33;padding:12px;">載入失敗：' + escapeHtml(e.message || String(e)) + '</div>';
+      }
+    }
+    function _renderMySubmissionRow(s) {
+      // status 色、label、附加資訊按 status 該全顯示
+      const statusMap = {
+        pending:         { color: "#888", label: "未解析"   },
+        resolved:        { color: "#06c", label: "待審核"   },
+        resolve_failed:  { color: "#c95", label: "解析失敗" },
+        approved:        { color: "#0a0", label: "已批准"   },
+        rejected:        { color: "#c33", label: "已拒絕"   }
+      };
+      const sm = statusMap[s.status] || { color: "#888", label: s.status };
+      const ratingStr = s.recommendation ? "⭐".repeat(s.recommendation) : "";
+      const tripStr = s.detected_trip_area_slug ? ' · ' + escapeHtml(s.detected_trip_area_slug) : "";
+
+      // Status-dependent extra row
+      let extra = "";
+      if (s.status === "approved" && s.approved_place_id) {
+        const placeLabel = escapeHtml(s.approved_place_name || s.approved_place_id);
+        const taStr = s.approved_place_trip_area_slug ? ' (' + escapeHtml(s.approved_place_trip_area_slug) + ')' : "";
+        extra = '<div style="margin-top:6px;font-size:12px;"><a href="#" data-flyto-pid="' + escapeHtml(s.approved_place_id) + '" style="color:#06c;text-decoration:none;">📍 ' + placeLabel + taStr + ' → 在地圖看</a></div>';
+      } else if (s.status === "rejected" && s.rejected_reason) {
+        extra = '<div style="margin-top:6px;font-size:12px;color:#c33;">拒絕原因：' + escapeHtml(s.rejected_reason) + '</div>';
+      } else if (s.status === "resolve_failed" && s.resolver_error) {
+        extra = '<div style="margin-top:6px;font-size:11px;color:#c33;font-family:monospace;word-break:break-all;">' + escapeHtml(s.resolver_error.slice(0, 200)) + '</div>';
+      }
+
+      const commentStr = s.comment ? '<div style="margin-top:4px;font-size:12px;color:#444;font-style:italic;">「' + escapeHtml(s.comment) + '」</div>' : "";
+
+      return `
+        <div style="border:1px solid var(--border,#ddd);border-radius:8px;padding:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:11px;color:#888;">${urlSourceLabel(s.url_source)}${tripStr} · ${relTime(s.created_at)}</div>
+              <div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;"><a href="${escapeHtml(s.raw_url)}" target="_blank" rel="noopener" style="color:#06c;">${escapeHtml(s.raw_url)}</a></div>
+              <div style="font-size:12px;margin-top:4px;">${ratingStr}</div>
+              ${commentStr}
+              ${extra}
+            </div>
+            <div style="font-size:11px;color:${sm.color};white-space:nowrap;font-weight:600;">${sm.label}</div>
+          </div>
+        </div>`;
+    }
+
+    // ============================================================
     // Debug pane (嵌入邀請碼 onboarding tab 底部) + MutationObserver
     // ============================================================
     function _ensureDebugPane() {
@@ -4995,7 +5144,7 @@
       if (!body) return;
       const code = state.inviteCode || "";
       const masked = code.length > 4 ? code.slice(0, 2) + "•".repeat(code.length - 4) + code.slice(-2) : (code ? "•".repeat(code.length) : "-");
-      const modals = ["submitModal","recentFriendModal","pendingListModal","resolveModal"];
+      const modals = ["submitModal","recentFriendModal","pendingListModal","resolveModal","mySubmissionsModal"];
       const modalStates = modals.map(m => {
         const el = document.getElementById(m);
         return m + "=" + (el && el.classList.contains("open") ? "OPEN" : "closed");
@@ -5012,7 +5161,7 @@
     }
     function _setupMutationObserver() {
       if (_debugObserver) return;
-      const modals = ["submitModal","recentFriendModal","pendingListModal","resolveModal"];
+      const modals = ["submitModal","recentFriendModal","pendingListModal","resolveModal","mySubmissionsModal"];
       _debugObserver = new MutationObserver((muts) => {
         for (const m of muts) {
           if (m.type === "attributes" && m.attributeName === "class") {
@@ -5038,6 +5187,9 @@
       if (sub) sub.addEventListener("click", openSubmitModal);
       const pen = $$("pendingListBtn");
       if (pen) pen.addEventListener("click", openPendingListModal);
+      // v1.0.64 Push 3: 📋 我嘅推薦 (friend + owner)
+      const mys = $$("mySubmissionsBtn");
+      if (mys) mys.addEventListener("click", openMySubmissionsModal);
 
       // Submit modal
       const submitCancel = $$("submitCancel");
@@ -5067,6 +5219,15 @@
       if (plClose) plClose.addEventListener("click", () => closeModal("pendingListModal"));
       const plBg = $$("pendingListModal");
       if (plBg) plBg.addEventListener("click", (e) => { if (e.target === plBg) closeModal("pendingListModal"); });
+      // v1.0.64 Push 3: 🔄 全部 resolve
+      const plBulk = $$("pendingListBulkResolveBtn");
+      if (plBulk) plBulk.addEventListener("click", _bulkResolve);
+
+      // v1.0.64 Push 3: 📋 我嘅推薦 modal
+      const mysClose = $$("mySubmissionsClose");
+      if (mysClose) mysClose.addEventListener("click", () => closeModal("mySubmissionsModal"));
+      const mysBg = $$("mySubmissionsModal");
+      if (mysBg) mysBg.addEventListener("click", (e) => { if (e.target === mysBg) closeModal("mySubmissionsModal"); });
 
       // Resolve modal
       const rsCancel = $$("resolveCancel");
