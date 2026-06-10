@@ -1810,6 +1810,12 @@ summary.walking-head::-webkit-details-marker { display: none; }
 
     <div class="footer-actions">
       <!-- v1.0.57: inviteBtn 已移除，輸入邀請碼/切換身份功能歸入「?」menu 邀請碼 tab -->
+      <!-- v1.0.63 Feature B: secondary toolbar - 三個 submission flow 入口 -->
+      <div class="submission-toolbar" id="submissionToolbar" style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap;">
+        <button class="btn submission-btn" id="recentFriendBtn" type="button" title="最近朋友推薦過嘅地點" style="flex:1;min-width:0;font-size:13px;">🆕 最近朋友推薦</button>
+        <button class="btn submission-btn" id="submitPlaceBtn" type="button" title="推薦新地點畀 HM 審核" hidden style="flex:1;min-width:0;font-size:13px;">📨 推薦地點</button>
+        <button class="btn submission-btn" id="pendingListBtn" type="button" title="審核待處理嘅推薦" hidden style="flex:1;min-width:0;font-size:13px;">🌟 最近推薦</button>
+      </div>
       <button class="btn primary" id="addPlaceBtn" disabled>新增地點</button>
     </div>
   </aside>
@@ -2153,6 +2159,134 @@ summary.walking-head::-webkit-details-marker { display: none; }
   </div>
 </div>
 
+<!-- =============================================================
+     v1.0.63 Feature B Push 2: submission flow modals
+     ============================================================= -->
+
+<!-- 1️⃣ 推薦地點 modal (friend + owner) -->
+<div class="modal-bg" id="submitModal">
+  <div class="modal">
+    <h2>📨 推薦地點</h2>
+    <p style="font-size:12px;color:var(--muted, #888);margin-top:-4px;">貼上 Google Maps / Tabelog / OpenRice link，由 HM 審核批准才上到地圖。</p>
+
+    <label>餐廳 link *</label>
+    <input id="submitUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="https://..." />
+
+    <label style="margin-top:10px;">你推薦嘅程度 *</label>
+    <div id="submitRatingRow" class="emoji-rating-row" role="radiogroup" aria-label="評分" style="display:flex;gap:8px;margin-top:4px;">
+      <button type="button" class="emoji-rating-btn" data-rating="1" aria-label="1星" style="flex:1;font-size:22px;padding:8px 0;border:1px solid var(--border, #ddd);background:transparent;border-radius:8px;cursor:pointer;">1⭐</button>
+      <button type="button" class="emoji-rating-btn" data-rating="2" aria-label="2星" style="flex:1;font-size:22px;padding:8px 0;border:1px solid var(--border, #ddd);background:transparent;border-radius:8px;cursor:pointer;">2⭐</button>
+      <button type="button" class="emoji-rating-btn" data-rating="3" aria-label="3星" style="flex:1;font-size:22px;padding:8px 0;border:1px solid var(--border, #ddd);background:transparent;border-radius:8px;cursor:pointer;">3⭐</button>
+      <button type="button" class="emoji-rating-btn" data-rating="4" aria-label="4星" style="flex:1;font-size:22px;padding:8px 0;border:1px solid var(--border, #ddd);background:transparent;border-radius:8px;cursor:pointer;">4⭐</button>
+      <button type="button" class="emoji-rating-btn" data-rating="5" aria-label="5星" style="flex:1;font-size:22px;padding:8px 0;border:1px solid var(--border, #ddd);background:transparent;border-radius:8px;cursor:pointer;">5⭐</button>
+    </div>
+    <p id="submitRatingHint" style="font-size:11px;color:var(--muted, #888);margin:4px 0 0 0;">tap 一次選定，tap 同一個取消</p>
+
+    <label style="margin-top:10px;">一句評語（可選）</label>
+    <textarea id="submitComment" rows="3" maxlength="500" placeholder="梳人品、記得挀什麼、忌口..."></textarea>
+
+    <p id="submitMsg" class="onboarding-msg" hidden style="margin-top:10px"></p>
+
+    <div class="actions">
+      <button class="btn" id="submitCancel" type="button">取消</button>
+      <button class="btn primary" id="submitConfirm" type="button">送出</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2️⃣ 最近朋友推薦 modal (all users, including guest) -->
+<div class="modal-bg" id="recentFriendModal">
+  <div class="modal" style="max-width:560px;">
+    <h2 style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <span>🆕 最近朋友推薦</span>
+      <button class="btn" id="recentFriendClose" type="button" style="font-size:14px;padding:4px 10px;">關閉</button>
+    </h2>
+    <p style="font-size:12px;color:var(--muted, #888);margin-top:-4px;">HM 審核批准了嘅朋友推薦，以當前 trip 為主，最多 30 條。</p>
+
+    <div id="recentFriendList" style="margin-top:10px;display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow-y:auto;">
+      <div style="text-align:center;color:var(--muted, #888);padding:20px;">載入中…</div>
+    </div>
+  </div>
+</div>
+
+<!-- 3️⃣ 最近推薦 (owner pending list) modal -->
+<div class="modal-bg" id="pendingListModal">
+  <div class="modal" style="max-width:640px;">
+    <h2 style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <span>🌟 待審核推薦</span>
+      <button class="btn" id="pendingListClose" type="button" style="font-size:14px;padding:4px 10px;">關閉</button>
+    </h2>
+    <p style="font-size:12px;color:var(--muted, #888);margin-top:-4px;">tap 條 submission 開詳情、resolve 同 approve / reject。</p>
+
+    <div id="pendingListBody" style="margin-top:10px;display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow-y:auto;">
+      <div style="text-align:center;color:var(--muted, #888);padding:20px;">載入中…</div>
+    </div>
+  </div>
+</div>
+
+<!-- 4️⃣ Resolve / approve detail modal (open-on-click 條 submission) -->
+<div class="modal-bg" id="resolveModal">
+  <div class="modal" style="max-width:580px;">
+    <h2>審核推薦</h2>
+    <div id="resolveSubmissionHeader" style="font-size:13px;padding:8px;background:var(--bg-soft, #f5f5f5);border-radius:6px;margin-bottom:10px;"></div>
+
+    <div id="resolveStatusRow" style="font-size:12px;color:var(--muted, #888);margin-bottom:8px;"></div>
+
+    <!-- Resolve-loading state -->
+    <div id="resolveLoading" hidden style="text-align:center;padding:16px;color:var(--muted, #888);">解析中… (Edge Function)</div>
+
+    <!-- Resolved-data preview -->
+    <div id="resolveDataPreview" hidden>
+      <h3 style="font-size:14px;margin:8px 0 6px 0;">解析結果</h3>
+      <div id="resolveDataFields" style="font-size:12px;"></div>
+      <p id="resolveNotes" style="font-size:11px;color:#c95;margin:6px 0 0 0;" hidden></p>
+    </div>
+
+    <!-- Manual fill (OpenRice manual_fill_required) -->
+    <div id="resolveManualFill" hidden style="margin-top:10px;padding:10px;border:1px dashed #c95;border-radius:6px;">
+      <p style="font-size:13px;color:#c95;margin:0 0 8px 0;"><strong>⚠ OpenRice 防爬頻被擋</strong> - 需手動填以下資料：</p>
+      <label>名稱 *</label>
+      <input id="resolveFillName" type="text" />
+      <div class="row">
+        <div><label>Lat *</label><input id="resolveFillLat" type="number" step="0.000001" /></div>
+        <div><label>Lng *</label><input id="resolveFillLng" type="number" step="0.000001" /></div>
+      </div>
+      <label>地址（可選）</label>
+      <input id="resolveFillAddress" type="text" />
+      <label>地區（可選，如「中環」「硚魚涌」）</label>
+      <input id="resolveFillRegion" type="text" />
+    </div>
+
+    <!-- Trip area selector + approve metadata override -->
+    <div id="resolveApprovalSection" hidden style="margin-top:10px;">
+      <label>Trip area *</label>
+      <select id="resolveTripArea"></select>
+      <label style="margin-top:6px;">菜系</label>
+      <select id="resolveCuisineGroup"></select>
+    </div>
+
+    <p id="resolveMsg" class="onboarding-msg" hidden style="margin-top:10px"></p>
+
+    <div class="actions" id="resolveActions" style="flex-wrap:wrap;gap:6px;">
+      <button class="btn" id="resolveCancel" type="button">取消</button>
+      <button class="btn" id="resolveRejectBtn" type="button" style="background:#c33;color:#fff;">拒絕</button>
+      <button class="btn primary" id="resolveApproveBtn" type="button" disabled>批准上地圖</button>
+    </div>
+  </div>
+</div>
+
+<!-- =============================================================
+     v1.0.63 Feature B Push 2: 嵌入式 debug pane (邀請碼 onboarding tab 底部)
+     - MutationObserver 監察 modal 開合
+     - 顯示 state.role / inviteCode masked / lastSubmission
+     ============================================================= -->
+<template id="submissionDebugTemplate">
+  <details id="submissionDebugPane" style="margin-top:10px;border:1px dashed #888;border-radius:6px;padding:8px;font-size:11px;font-family:monospace;">
+    <summary style="cursor:pointer;font-weight:600;">🐛 Feature B debug pane</summary>
+    <div id="submissionDebugBody" style="margin-top:6px;color:var(--text-muted, #888);"></div>
+  </details>
+</template>
+
 <div id="toast" class="toast"></div>
 
 <div class="photo-lightbox" id="photoLightbox"><img id="photoLightboxImg" /></div>
@@ -2164,7 +2298,7 @@ summary.walking-head::-webkit-details-marker { display: none; }
 <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <!-- v1.0.61: 主動 cache buster、強制 Safari/Fastly 拿新版 app.js -->
-<script src="./config.js?v=1.0.62"></script>
-<script src="./app.js?v=1.0.62"></script>
+<script src="./config.js?v=1.0.63"></script>
+<script src="./app.js?v=1.0.63"></script>
 </body>
 </html>
