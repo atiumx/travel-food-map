@@ -8,7 +8,7 @@
 
 (() => {
   // v1.0.60: 應用版本號（統一管理，邀請碼 pane 顯示）
-  const APP_VERSION = "v1.0.69";
+  const APP_VERSION = "v1.0.70";
   const APP_BUILD_DATE = "2026-06-10";
   window.__APP_VERSION = APP_VERSION;
 
@@ -4055,15 +4055,73 @@
   // Invite code flow  (v1.0.56 — server-side display_name binding)
   // -----------------------------------------------------------
 
+  // v1.0.70 #4: 持久 device fingerprint (per-browser/per-PWA install)
+  function _getDeviceFingerprint() {
+    try {
+      let fp = localStorage.getItem("tfm_device_fp");
+      if (!fp) {
+        if (typeof crypto !== "undefined" && crypto.randomUUID) {
+          fp = crypto.randomUUID();
+        } else {
+          fp = "fp_" + Date.now() + "_" + Math.random().toString(36).slice(2, 12);
+        }
+        localStorage.setItem("tfm_device_fp", fp);
+      }
+      return fp;
+    } catch (e) {
+      // localStorage blocked (private mode) — return ephemeral fp
+      return "ephemeral_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
+    }
+  }
+
+  function _getDeviceName() {
+    try {
+      const ua = navigator.userAgent || "";
+      // Detect common platforms
+      if (/iPhone/i.test(ua)) return "iPhone";
+      if (/iPad/i.test(ua)) return "iPad";
+      if (/iPod/i.test(ua)) return "iPod";
+      if (/Android/i.test(ua)) {
+        const m = ua.match(/Android[^;]*;\s*([^)]+)\)/);
+        return m ? "Android · " + m[1].trim().slice(0, 30) : "Android";
+      }
+      if (/Macintosh/i.test(ua)) return "Mac";
+      if (/Windows NT/i.test(ua)) return "Windows";
+      if (/Linux/i.test(ua)) return "Linux";
+      return ua.slice(0, 40);
+    } catch (e) { return "unknown"; }
+  }
+
   // Low-level: call verify_invite_code and set state.  Returns
   // { ok, needsName, displayName, error } — callers decide UI.
   async function verifyAndApplyCode(code) {
     if (!code) return { ok: false, error: "請輸入邀請碼" };
-    const { data, error } = await sb.rpc("verify_invite_code", { p_code: code });
+    const { data, error } = await sb.rpc("verify_invite_code", {
+      p_code: code,
+      p_device_fingerprint: _getDeviceFingerprint(),
+      p_device_name: _getDeviceName()
+    });
     if (error) return { ok: false, error: "驗證失敗：" + error.message };
     if (!data || !data.valid) {
       const reason = data ? data.reason : "unknown";
-      return { ok: false, error: "邀請碼無效（" + reason + "）" };
+      // v1.0.70 #4: friendly Chinese error for device-related rejects
+      let friendly = "邀請碼無效（" + reason + "）";
+      if (reason === "device_limit_exceeded") {
+        friendly = "此邀請碼已綁定 3 部裝置（上限）。請聯絡 owner 解除其中一部，或使用已綁定嘅裝置。";
+      } else if (reason === "device_blocked") {
+        friendly = "此裝置已被 owner 移除，30 日內唔可以再用呢個邀請碼。";
+      } else if (reason === "rate_limited") {
+        friendly = "嘗試次數過多，請 1 分鐘後再試。";
+      } else if (reason === "exhausted") {
+        friendly = "此邀請碼已用完次數上限。";
+      } else if (reason === "expired") {
+        friendly = "此邀請碼已過期。";
+      } else if (reason === "inactive") {
+        friendly = "此邀請碼已停用。";
+      } else if (reason === "not_found") {
+        friendly = "邀請碼錯誤或不存在。";
+      }
+      return { ok: false, error: friendly, reason };
     }
     if (data.display_name) {
       // Already bound — apply immediately
@@ -4155,7 +4213,11 @@
     if (!body || !state.inviteCode) return;
     body.innerHTML = "載入中⋯";
     try {
-      const { data, error } = await sb.rpc("verify_invite_code", { p_code: state.inviteCode });
+      const { data, error } = await sb.rpc("verify_invite_code", {
+        p_code: state.inviteCode,
+        p_device_fingerprint: _getDeviceFingerprint(),
+        p_device_name: _getDeviceName()
+      });
       if (error || !data) {
         body.innerHTML = "<span style='color:var(--danger,#c33)'>取回狀態失敗「" + (error ? error.message : "no_data") + "」</span>";
         return;
@@ -4266,7 +4328,11 @@
     if (dn) { _applySession(code, dn); }
     // Then verify in background to refresh display_name from server
     try {
-      const { data } = await sb.rpc("verify_invite_code", { p_code: code });
+      const { data } = await sb.rpc("verify_invite_code", {
+        p_code: code,
+        p_device_fingerprint: _getDeviceFingerprint(),
+        p_device_name: _getDeviceName()
+      });
       if (data && data.valid && data.display_name) {
         _applySession(code, data.display_name);
       } else if (!data || !data.valid) {

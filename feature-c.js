@@ -148,6 +148,7 @@
         '<button type="button" data-act="label" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:0;cursor:pointer;font-size:13px;color:var(--text,#222);">✏️ 改 label</button>',
         '<button type="button" data-act="role" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:0;cursor:pointer;font-size:13px;color:var(--text,#222);">🔄 ' + roleLabel + '</button>',
         '<button type="button" data-act="reset" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:0;cursor:pointer;font-size:13px;color:var(--text,#222);">↺ Reset 計數</button>',
+        '<button type="button" data-act="devices" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:0;cursor:pointer;font-size:13px;color:var(--text,#222);">📱 裝置清單</button>',
         '<div style="border-top:1px solid var(--border,#eee);margin:4px 0;"></div>',
         '<button type="button" data-act="delete" style="display:block;width:100%;text-align:left;padding:8px 12px;background:transparent;border:0;cursor:pointer;font-size:13px;color:#c33;">🗑️ 刪除</button>'
       ].join("");
@@ -169,6 +170,7 @@
           if (act === "label") _onEditLabel(target);
           else if (act === "role") _onChangeRole(target);
           else if (act === "reset") _onResetUseCount(target);
+          else if (act === "devices") _onShowDevices(target);
           else if (act === "delete") _onDelete(target);
         });
       });
@@ -258,6 +260,126 @@
         await refreshList();
       } catch (e) {
         showToast("失敗：" + (e.message || String(e)));
+      }
+    }
+
+    // v1.0.70 #4: 裝置清單 + kick
+    let _idlCurrentTarget = null;
+
+    function _fmtTs(ts) {
+      if (!ts) return "—";
+      try {
+        const d = new Date(ts);
+        const Y = d.getFullYear();
+        const M = String(d.getMonth() + 1).padStart(2, "0");
+        const D = String(d.getDate()).padStart(2, "0");
+        const h = String(d.getHours()).padStart(2, "0");
+        const m = String(d.getMinutes()).padStart(2, "0");
+        return Y + "-" + M + "-" + D + " " + h + ":" + m;
+      } catch (e) { return String(ts); }
+    }
+
+    function _fmtRel(ts) {
+      if (!ts) return "—";
+      try {
+        const diff = (Date.now() - new Date(ts).getTime()) / 1000;
+        if (diff < 60) return "刚才";
+        if (diff < 3600) return Math.floor(diff/60) + " 分鐘前";
+        if (diff < 86400) return Math.floor(diff/3600) + " 小時前";
+        if (diff < 86400 * 7) return Math.floor(diff/86400) + " 日前";
+        return _fmtTs(ts);
+      } catch (e) { return _fmtTs(ts); }
+    }
+
+    async function _onShowDevices(target) {
+      _idlCurrentTarget = target;
+      const subtitle = $$("idlSubtitle");
+      if (subtitle) subtitle.textContent = "邀請碼：" + (target.label || "(無標籤)") + " · 角色：" + (target.role || "friend");
+      const body = $$("idlListBody");
+      if (body) body.innerHTML = "載入中⋯";
+      const msg = $$("idlMsg"); if (msg) msg.hidden = true;
+      openModal("inviteDeviceListModal");
+      await _refreshDeviceList();
+    }
+
+    async function _refreshDeviceList() {
+      const target = _idlCurrentTarget;
+      const body = $$("idlListBody");
+      if (!target || !body) return;
+      try {
+        const { data, error } = await sb.rpc("list_invite_code_devices", {
+          p_invite_code: state.inviteCode,
+          p_target_invite_id: target.id
+        });
+        if (error) throw error;
+        const rows = Array.isArray(data) ? data : [];
+        if (rows.length === 0) {
+          body.innerHTML = '<p class="onboarding-hint" style="margin:0;color:var(--muted,#888);">尚未有任何裝置使用過此邀請碼。</p>';
+          return;
+        }
+        if (target.role === "owner") {
+          body.innerHTML = '<div style="padding:8px;background:#e8f4ff;border-radius:4px;font-size:12px;color:#06c;margin-bottom:8px;">ℹ️ Owner code 不受 3 部限制，全部裝置可同時使用。</div>';
+        } else {
+          body.innerHTML = "";
+        }
+        const active = rows.filter(r => !r.is_blacklisted || (r.blacklisted_until && new Date(r.blacklisted_until) <= new Date()));
+        const blocked = rows.filter(r => r.is_blacklisted && (!r.blacklisted_until || new Date(r.blacklisted_until) > new Date()));
+        if (target.role !== "owner") {
+          const countLine = document.createElement("div");
+          countLine.style.cssText = "font-size:12px;color:var(--muted,#888);margin-bottom:8px;";
+          countLine.textContent = "使用中：" + active.length + " / 3" + (blocked.length > 0 ? " · 已移除：" + blocked.length : "");
+          body.appendChild(countLine);
+        }
+        rows.forEach(r => {
+          const row = document.createElement("div");
+          const isBlocked = r.is_blacklisted && (!r.blacklisted_until || new Date(r.blacklisted_until) > new Date());
+          row.style.cssText = "display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--border,#eee);border-radius:4px;margin-bottom:6px;" + (isBlocked ? "opacity:0.5;background:#fee;" : "");
+          const info = document.createElement("div");
+          info.style.cssText = "flex:1;min-width:0;";
+          const fpShort = (r.device_fingerprint || "").slice(0, 8);
+          info.innerHTML =
+            '<div style="font-size:13px;font-weight:600;">' + escapeHtml(r.display_name || "(未命名裝置)") + '</div>' +
+            '<div style="font-size:11px;color:var(--muted,#888);">fp: ' + escapeHtml(fpShort) + '… · 首次 ' + _fmtTs(r.first_seen_at) + ' · 最近 ' + _fmtRel(r.last_seen_at) + '</div>' +
+            (isBlocked ? '<div style="font-size:11px;color:#c33;">已移除 · 30 日內不可再用。解除：' + _fmtTs(r.blacklisted_until) + '</div>' : '');
+          row.appendChild(info);
+          if (!isBlocked) {
+            const kickBtn = document.createElement("button");
+            kickBtn.type = "button";
+            kickBtn.className = "btn";
+            kickBtn.style.cssText = "background:#c33;color:#fff;font-size:12px;padding:4px 10px;";
+            kickBtn.textContent = "移除";
+            kickBtn.addEventListener("click", () => _onKickDevice(r));
+            row.appendChild(kickBtn);
+          }
+          body.appendChild(row);
+        });
+      } catch (e) {
+        body.innerHTML = '<p style="color:#c33;">載入失敗：' + escapeHtml(e.message || String(e)) + '</p>';
+      }
+    }
+
+    async function _onKickDevice(device) {
+      const target = _idlCurrentTarget;
+      if (!target || !device) return;
+      const ok = await appDialog.confirm({
+        title: "移除裝置",
+        message: "確認移除「" + (device.display_name || "(未命名)") + "（fp " + (device.device_fingerprint || "").slice(0, 8) + "…）」？\n\n該裝置 30 日內不可再使用此邀請碼。",
+        okText: "移除",
+        cancelText: "取消",
+        danger: true
+      });
+      if (!ok) return;
+      try {
+        const { error } = await sb.rpc("kick_invite_device", {
+          p_invite_code: state.inviteCode,
+          p_target_invite_id: target.id,
+          p_device_fingerprint: device.device_fingerprint
+        });
+        if (error) throw error;
+        showToast("已移除裝置");
+        await _refreshDeviceList();
+      } catch (e) {
+        showToast("移除失敗：" + (e.message || String(e)));
       }
     }
 
@@ -449,6 +571,12 @@
       if (bg) bg.addEventListener("click", (e) => { if (e.target === bg) closeModal("createInviteCodeModal"); });
       const okBtn = $$("cicConfirm");
       if (okBtn) okBtn.addEventListener("click", _onCreateConfirm);
+
+      // v1.0.70 #4: Device list modal close + bg click
+      const idlCloseBtn = $$("idlClose");
+      if (idlCloseBtn) idlCloseBtn.addEventListener("click", () => closeModal("inviteDeviceListModal"));
+      const idlBg = $$("inviteDeviceListModal");
+      if (idlBg) idlBg.addEventListener("click", (e) => { if (e.target === idlBg) closeModal("inviteDeviceListModal"); });
 
       // Role chips
       const roleRow = $$("cicRoleRow");

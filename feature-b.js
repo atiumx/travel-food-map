@@ -267,6 +267,8 @@
       $$("resolveDataPreview").hidden = true;
       $$("resolveManualFill").hidden = true;
       $$("resolveApprovalSection").hidden = true;
+      const dupEl = $$("resolveDuplicates");
+      if (dupEl) dupEl.hidden = true;
       $$("resolveApproveBtn").disabled = true;
       clearMsg($$("resolveMsg"));
       openModal("resolveModal");
@@ -349,6 +351,43 @@
 
       $$("resolveApprovalSection").hidden = false;
       $$("resolveApproveBtn").disabled = false;
+
+      // v1.0.70 #3: 重複檢測 (async, 不阻 approve)
+      _detectAndRenderDuplicates(d).catch(e => console.warn("[dup-detect] failed:", e));
+    }
+
+    // v1.0.70 #3: 重複地點檢測
+    async function _detectAndRenderDuplicates(d) {
+      const dupEl = $$("resolveDuplicates");
+      const listEl = $$("resolveDuplicatesList");
+      if (!dupEl || !listEl) return;
+      dupEl.hidden = true;
+      listEl.innerHTML = "";
+      if (d.lat == null || d.lng == null || !d.name) return;
+      try {
+        const { data, error } = await sb.rpc("detect_place_duplicates", {
+          p_lat: Number(d.lat),
+          p_lng: Number(d.lng),
+          p_name: String(d.name),
+          p_exclude_id: null
+        });
+        if (error) { console.warn("[dup-detect] rpc error:", error); return; }
+        const candidates = Array.isArray(data) ? data.slice(0, 3) : [];
+        if (candidates.length === 0) return;
+        listEl.innerHTML = candidates.map(c => {
+          const dist = c.distance_m != null ? Math.round(c.distance_m) + "m" : "?";
+          const sim = c.name_similarity != null ? " · 名稱相似度 " + (Number(c.name_similarity) * 100).toFixed(0) + "%" : "";
+          const region = c.region ? " · " + escapeHtml(c.region) : "";
+          const cat = c.category ? " · " + escapeHtml(c.category) : "";
+          return '<div style="padding:4px 6px;background:#fff;border-radius:3px;">'
+            + '<strong>' + escapeHtml(c.name || "(no name)") + '</strong>'
+            + '<span style="color:#666;"> — ' + dist + sim + region + cat + '</span>'
+            + '</div>';
+        }).join("");
+        dupEl.hidden = false;
+      } catch (e) {
+        console.warn("[dup-detect] threw:", e);
+      }
     }
     async function _resolveApprove() {
       if (!_currentResolve) return;

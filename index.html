@@ -2715,6 +2715,20 @@ summary.walking-head::-webkit-details-marker { display: none; }
   </div>
 </div>
 
+<!-- v1.0.70 Feature D: 裝置清單 modal (邀請碼綁定裝置管理) -->
+<div class="modal-bg" id="inviteDeviceListModal">
+  <div class="modal" style="max-width:520px;">
+    <h2 style="margin-bottom:6px;">📱 裝置清單</h2>
+    <p id="idlSubtitle" style="font-size:12px;color:var(--muted,#888);margin-top:0;"></p>
+    <p style="font-size:12px;color:var(--muted,#888);margin:6px 0;">每個邀請碼最多 3 部裝置。移除裝置後，該裝置 30 日內不可再使用此邀請碼。</p>
+    <div id="idlListBody" style="margin-top:10px;">載入中⋯</div>
+    <p id="idlMsg" class="onboarding-msg" hidden style="margin-top:10px"></p>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+      <button type="button" id="idlClose" class="btn">關閉</button>
+    </div>
+  </div>
+</div>
+
 <!-- v1.0.66 Feature C: 一次性顯示新生成嘅 code -->
 <div class="modal-bg" id="inviteCodeCreatedModal">
   <div class="modal" style="max-width:480px;">
@@ -2793,6 +2807,12 @@ summary.walking-head::-webkit-details-marker { display: none; }
       <select id="resolveCuisineGroup"></select>
     </div>
 
+    <!-- v1.0.70 #3: 重複檢測 warning chips (Owner review only) -->
+    <div id="resolveDuplicates" hidden style="margin-top:10px;padding:8px;background:#fff8e1;border-left:3px solid #f5a623;border-radius:4px;">
+      <div style="font-size:12px;font-weight:600;color:#a06000;margin-bottom:6px;">⚠️ 可能重複地點（仍可批准）</div>
+      <div id="resolveDuplicatesList" style="font-size:12px;display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+
     <p id="resolveMsg" class="onboarding-msg" hidden style="margin-top:10px"></p>
 
     <div class="actions" id="resolveActions" style="flex-wrap:wrap;gap:6px;">
@@ -2827,9 +2847,9 @@ summary.walking-head::-webkit-details-marker { display: none; }
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <!-- v1.0.61: 主動 cache buster、強制 Safari/Fastly 拿新版 app.js -->
 <!-- v1.0.67-rc1: 拆 feature-b.js + feature-c.js (依賴 window.AppShared, 順序唔可以亂) -->
-<script src="./config.js?v=1.0.69"></script>
-<script src="./app.js?v=1.0.69"></script>
-<script src="./feature-b.js?v=1.0.69"></script>
-<script src="./feature-c.js?v=1.0.69"></script>
+<script src="./config.js?v=1.0.70"></script>
+<script src="./app.js?v=1.0.70"></script>
+<script src="./feature-b.js?v=1.0.70"></script>
+<script src="./feature-c.js?v=1.0.70"></script>
 </body>
 </html>
